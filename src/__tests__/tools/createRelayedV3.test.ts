@@ -6,6 +6,7 @@ jest.mock("@multiversx/sdk-core", () => {
         Transaction: {
             newFromPlainObject: jest.fn().mockImplementation((obj) => ({
                 ...obj,
+                relayer: obj.relayer ? { toBech32: () => obj.relayer } : undefined,
                 toPlainObject: () => obj
             }))
         },
@@ -48,7 +49,8 @@ describe("create-relayed-v3", () => {
             chainID: "D",
             data: "base64data",
             signature: "user-signature",
-            version: 1
+            relayer: "relayer-addr",
+            version: 2
         };
 
         const result = await createRelayedV3(innerTx);

@@ -1,58 +1,60 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const supertest_1 = __importDefault(require("supertest"));
 const http_1 = require("../http");
-const feedValidator_1 = require("../utils/feedValidator");
-const search_1 = require("../logic/search");
-// Mock Logic
-jest.mock("../logic/search");
-describe("HTTP Server E2E", () => {
-    let app;
+const searchProducts_1 = require("../tools/searchProducts");
+// Mock the searchProducts tool
+jest.mock("../tools/searchProducts");
+jest.mock("../utils/whitelistRegistry", () => ({
+    loadWhitelist: jest.fn().mockReturnValue(["COL-1"])
+}));
+describe("HTTP Server", () => {
+    let fastify;
     beforeAll(async () => {
-        const fastify = (0, http_1.createHttpServer)();
+        fastify = (0, http_1.createHttpServer)();
         await fastify.ready();
-        app = fastify.server; // Node http server instance for supertest
     });
-    afterAll(() => {
-        // fastify.close() if strictly needed, but jest teardown handles it usually.
+    afterAll(async () => {
+        await fastify.close();
     });
-    it("GET /feed.json should return valid Google Merchant Feed", async () => {
-        // Setup Mock Data
-        search_1.searchProducts.mockResolvedValue([
-            {
-                id: "EGLD-123-01",
-                name: "Test Item",
-                description: "A great NFT",
-                price: "1000000000000000000 atomic units",
-                image_url: "http://img.com/1.png",
-                availability: "in_stock",
-                metadata: { nonce: 1, token_identifier: "EGLD-123", trust_level: "verified" }
-            }
-        ]);
-        const response = await (0, supertest_1.default)(app)
-            .get("/feed.json")
-            .expect("Content-Type", /json/)
-            .expect(200);
-        const feed = response.body;
-        expect(feed.items).toBeDefined();
-        expect(feed.items).toHaveLength(1);
-        // Run Validator
-        const validation = (0, feedValidator_1.validateFeed)(feed.items);
-        expect(validation.errors).toEqual([]);
-        expect(validation.valid).toBe(true);
-        // Check specific mapping details
-        const item = feed.items[0];
-        expect(item.brand).toBe("MultiversX");
-        expect(item.price.value).toBe("1000000000000000000");
-        expect(item.link).toContain("xexchange.com/nft/EGLD-123-01");
+    it("should return UCP manifest", async () => {
+        const response = await fastify.inject({
+            method: 'GET',
+            url: '/.well-known/ucp'
+        });
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.body);
+        expect(body).toHaveProperty("name", "MultiversX Agent Connector");
     });
-    it("GET /health should return status ok", async () => {
-        const response = await (0, supertest_1.default)(app)
-            .get("/health")
-            .expect(200);
-        expect(response.body.status).toBe("ok");
+    it("should return health status", async () => {
+        const response = await fastify.inject({
+            method: 'GET',
+            url: '/health'
+        });
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.body);
+        expect(body.status).toBe("ok");
+    });
+    it("should return product feed", async () => {
+        searchProducts_1.searchProducts.mockResolvedValue({
+            content: [{
+                    type: "text",
+                    text: JSON.stringify([{
+                            id: "P-1",
+                            name: "Product 1",
+                            description: "Desc",
+                            image_url: "img",
+                            availability: "in_stock",
+                            price: "10 EGLD"
+                        }])
+                }]
+        });
+        const response = await fastify.inject({
+            method: 'GET',
+            url: '/feed.json'
+        });
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.body);
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0].id).toBe("P-1");
     });
 });

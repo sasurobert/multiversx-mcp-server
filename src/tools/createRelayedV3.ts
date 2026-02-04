@@ -51,9 +51,15 @@ export async function createRelayedV3(
             throw new Error("MVX_WALLET_PEM or MVX_WALLET_DIR must be set.");
         }
 
-        // Set relayer address (must match the relayer's wallet)
-        tx.relayer = relayerWallet.address;
-        tx.version = 2;
+        // VALIDATION: In Relayed V3, the sender MUST set the relayer address BEFORE signing.
+        // We must not overwrite it, but we MUST verify it's correct for the relayer's address.
+        if (!tx.relayer || tx.relayer.toBech32() !== relayerWallet.address.toBech32()) {
+            throw new Error(`Invalid relayer address. Expected ${relayerWallet.address.toBech32()} for sender's shard.`);
+        }
+
+        if (tx.version < 2) {
+            throw new Error("Invalid transaction version for Relayed V3. Expected version >= 2.");
+        }
 
         // Sign the transaction as relayer using TransactionComputer
         const bytesToSign = txComputer.computeBytesForSigning(tx);
