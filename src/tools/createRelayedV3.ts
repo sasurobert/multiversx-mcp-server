@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Transaction, TransactionComputer, Address, UserVerifier } from "@multiversx/sdk-core";
+import { Transaction, TransactionComputer, Address, UserVerifier, Logger } from "@multiversx/sdk-core";
 import { ToolResult } from "./types";
 import { loadNetworkConfig, createNetworkProvider } from "./networkConfig";
 import { loadWalletConfig, loadWalletFromPem, loadWalletsFromDir, LoadedWallet } from "./walletConfig";
@@ -66,7 +66,7 @@ export async function createRelayedV3(
 
         // 3. Simulation BEFORE broadcast
         const simulationResult: any = await api.simulateTransaction(tx);
-        logger.info({
+        Logger.info({
             simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
         }, "Relayer: Simulation result received");
 
@@ -78,7 +78,7 @@ export async function createRelayedV3(
 
         if (resultStatus !== 'success') {
             const message = execution?.message || simulationResult?.error || 'Unknown error';
-            logger.error({
+            Logger.error({
                 error: message,
                 simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
             }, "Relayer: Simulation failed before broadcast");
