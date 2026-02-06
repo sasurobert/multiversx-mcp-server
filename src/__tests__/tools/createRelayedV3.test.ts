@@ -22,6 +22,12 @@ jest.mock("@multiversx/sdk-core", () => {
             fromAddress: jest.fn().mockImplementation(() => ({
                 verify: jest.fn().mockReturnValue(true)
             }))
+        },
+        Logger: {
+            info: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn()
         }
     };
 });
