@@ -66,9 +66,7 @@ export async function createRelayedV3(
 
         // 3. Simulation BEFORE broadcast
         const simulationResult: any = await api.simulateTransaction(tx);
-        logger.info({
-            simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
-        }, "Relayer: Simulation result received");
+        console.log("Relayer: Simulation result received:", JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v));
 
         // Robust Parser: Handle both flattened (API) and nested (Proxy/Gateway) structures
         const statusFromStatus = simulationResult?.status?.status;
@@ -78,10 +76,7 @@ export async function createRelayedV3(
 
         if (resultStatus !== 'success') {
             const message = execution?.message || simulationResult?.error || 'Unknown error';
-            logger.error({
-                error: message,
-                simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
-            }, "Relayer: Simulation failed before broadcast");
+            console.error("Relayer: Simulation failed before broadcast:", message, JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v));
             throw new Error(`On-chain simulation failed: ${message}`);
         }
 

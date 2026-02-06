@@ -2,40 +2,53 @@ import { z } from "zod";
 import { ToolResult } from "../types";
 import { loadNetworkConfig, createNetworkProvider } from "../networkConfig";
 import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
-import { Address, Transaction } from "@multiversx/sdk-core";
+import { Address, AbiRegistry, SmartContractQuery, ArgSerializer, SmartContractTransactionsFactory, TransactionsFactoryConfig, NativeSerializer } from "@multiversx/sdk-core";
+import fs from "fs";
+import path from "path";
+
+let reputationAbi: AbiRegistry | undefined;
+
+function initializeReputationAbi() {
+    if (reputationAbi) return;
+    const abiPath = path.join(__dirname, "../../abis/reputation-registry.abi.json");
+    reputationAbi = AbiRegistry.create(JSON.parse(fs.readFileSync(abiPath, "utf8")));
+}
 
 /**
  * Fetch reputation score and total jobs for an agent.
  */
 export async function getAgentReputation(agentNonce: number): Promise<ToolResult> {
     const config = loadNetworkConfig();
-    const api = createNetworkProvider(config);
+    const provider = createNetworkProvider(config);
+    initializeReputationAbi();
 
     try {
-        // Query Reputation Registry
-        // Endpoints usually: getReputationScore(nonce), getTotalJobs(nonce)
-        // We use queryContract to get exact state
+        const serializer = new ArgSerializer();
+        const scoreEndpoint = reputationAbi!.getEndpoint("getReputationScore");
+        const totalJobsEndpoint = reputationAbi!.getEndpoint("getTotalJobs");
 
-        // Mocking the VM queries since we don't have a direct "VM Query" helper with result parsing in this basic SDK wrapper yet
-        // In a real scenario, we'd use api.queryContract()
+        const scoreQuery = new SmartContractQuery({
+            contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
+            function: "getReputationScore",
+            arguments: serializer.valuesToBuffers(NativeSerializer.nativeToTypedValues([BigInt(agentNonce)], scoreEndpoint))
+        });
 
-        const scoreResponse = await api.doGetGeneric(`accounts/${REGISTRY_ADDRESSES.REPUTATION}/vm-values/getReputationScore?args=${agentNonce}`);
-        const totalJobsResponse = await api.doGetGeneric(`accounts/${REGISTRY_ADDRESSES.REPUTATION}/vm-values/getTotalJobs?args=${agentNonce}`);
+        const totalJobsQuery = new SmartContractQuery({
+            contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
+            function: "getTotalJobs",
+            arguments: serializer.valuesToBuffers(NativeSerializer.nativeToTypedValues([BigInt(agentNonce)], totalJobsEndpoint))
+        });
 
-        const scoreReturnData = scoreResponse?.data?.data?.returnData || scoreResponse?.data?.data?.returnDataParts;
-        const totalJobsReturnData = totalJobsResponse?.data?.data?.returnData || totalJobsResponse?.data?.data?.returnDataParts;
+        const [scoreRes, totalJobsRes] = await Promise.all([
+            provider.queryContract(scoreQuery),
+            provider.queryContract(totalJobsQuery)
+        ]);
 
-        const score = scoreReturnData?.[0]
-            ? BigInt("0x" + Buffer.from(scoreReturnData[0], "base64").toString("hex")).toString()
-            : null;
+        const scoreValues = serializer.buffersToValues(scoreRes.returnDataParts.map(p => Buffer.from(p)), scoreEndpoint.output);
+        const totalJobsValues = serializer.buffersToValues(totalJobsRes.returnDataParts.map(p => Buffer.from(p)), totalJobsEndpoint.output);
 
-        const totalJobs = totalJobsReturnData?.[0]
-            ? BigInt("0x" + Buffer.from(totalJobsReturnData[0], "base64").toString("hex")).toString()
-            : null;
-
-        if (score === null || totalJobs === null) {
-            throw new Error("Failed to fetch reputation data from registry");
-        }
+        const score = scoreValues[0]?.valueOf().toString() || "0";
+        const totalJobs = totalJobsValues[0]?.valueOf().toString() || "0";
 
         const result = {
             agent_id: agentNonce,
@@ -61,22 +74,31 @@ export async function getAgentReputation(agentNonce: number): Promise<ToolResult
  */
 export async function submitAgentFeedback(agentNonce: number, rating: number, sender?: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
+    initializeReputationAbi();
 
     try {
-        // Default sender to a safe dummy if not provided (for unsigned structure generation only)
-        // Ideally, the client MUST provide the sender to generate a valid transaction structure for signing.
-        const senderAddress = sender ? Address.newFromBech32(sender) : Address.newFromBech32("erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu");
+        const senderAddress = sender ? Address.newFromBech32(sender) : new Address(Buffer.alloc(32));
 
-        const tx = new Transaction({
-            nonce: 0n, // Nonce will be 0 if we don't fetch it. For MCP unsigned return, 0 is often a placeholder.
-            value: 0n,
-            receiver: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
-            sender: senderAddress,
-            gasLimit: 10_000_000n,
-            chainID: config.chainId,
-            data: Buffer.from(`submit_feedback@${agentNonce.toString(16).padStart(16, "0")}@${rating.toString(16).padStart(2, "0")}`),
-            version: 1
+        const factory = new SmartContractTransactionsFactory({
+            abi: reputationAbi!,
+            config: new TransactionsFactoryConfig({ chainID: config.chainId })
         });
+
+        const endpoint = reputationAbi!.getEndpoint("submit_feedback");
+        const typedArgs = NativeSerializer.nativeToTypedValues([
+            BigInt(agentNonce),
+            BigInt(rating)
+        ], endpoint);
+
+        const tx = await factory.createTransactionForExecute(
+            senderAddress,
+            {
+                contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
+                function: "submit_feedback",
+                arguments: typedArgs,
+                gasLimit: 10_000_000n
+            }
+        );
 
         return {
             content: [{ type: "text", text: JSON.stringify(tx.toPlainObject(), null, 2) }]
