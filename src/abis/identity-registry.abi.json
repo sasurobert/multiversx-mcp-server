@@ -82,16 +82,16 @@
         },
         {
             "docs": [
-                "Update an agent's URI, public key, and optionally metadata.",
-                "Only the owner of the agent NFT can call this."
+                "Update an agent's URI, public_key, and optionally metadata.",
+                "This follows the Transfer-Execute pattern: the owner sends the agent NFT to this endpoint.",
+                "The nonce is automatically extracted from the payment."
             ],
             "name": "update_agent",
             "mutability": "mutable",
+            "payableInTokens": [
+                "*"
+            ],
             "inputs": [
-                {
-                    "name": "nonce",
-                    "type": "u64"
-                },
                 {
                     "name": "new_uri",
                     "type": "bytes"
@@ -106,7 +106,8 @@
                     "multi_arg": true
                 }
             ],
-            "outputs": []
+            "outputs": [],
+            "allow_multiple_var_args": true
         },
         {
             "docs": [

@@ -69,30 +69,6 @@
             "outputs": []
         },
         {
-            "name": "set_validation_contract_address",
-            "onlyOwner": true,
-            "mutability": "mutable",
-            "inputs": [
-                {
-                    "name": "address",
-                    "type": "Address"
-                }
-            ],
-            "outputs": []
-        },
-        {
-            "name": "set_identity_contract_address",
-            "onlyOwner": true,
-            "mutability": "mutable",
-            "inputs": [
-                {
-                    "name": "address",
-                    "type": "Address"
-                }
-            ],
-            "outputs": []
-        },
-        {
             "name": "reputation_score",
             "mutability": "readonly",
             "inputs": [
@@ -194,7 +170,7 @@
     ],
     "events": [
         {
-            "identifier": "reputation_updated",
+            "identifier": "reputationUpdated",
             "inputs": [
                 {
                     "name": "agent_nonce",

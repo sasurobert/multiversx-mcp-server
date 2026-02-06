@@ -54,22 +54,26 @@ export function loadNetworkConfig(): NetworkConfig {
 }
 
 /**
- * Create a Network Provider instance for the given network config using the modern Entrypoint pattern.
+ * Create a Network Entrypoint instance for the given network config.
  */
-export function createNetworkProvider(config: NetworkConfig): INetworkProvider {
+export function createEntrypoint(config: NetworkConfig): DevnetEntrypoint | TestnetEntrypoint | MainnetEntrypoint {
     const url = config.apiUrl;
     const kind = url.includes('api') ? 'api' : 'proxy';
 
-    let entrypoint: any;
     if (config.chainId === '1') {
-        entrypoint = new MainnetEntrypoint({ url, kind });
+        return new MainnetEntrypoint({ url, kind });
     } else if (config.chainId === 'T') {
-        entrypoint = new TestnetEntrypoint({ url, kind });
+        return new TestnetEntrypoint({ url, kind });
     } else {
-        entrypoint = new DevnetEntrypoint({ url, kind });
+        return new DevnetEntrypoint({ url, kind });
     }
+}
 
-    return entrypoint.createNetworkProvider();
+/**
+ * Create a Network Provider instance for the given network config using the modern Entrypoint pattern.
+ */
+export function createNetworkProvider(config: NetworkConfig): INetworkProvider {
+    return createEntrypoint(config).createNetworkProvider();
 }
 
 /**

@@ -1,41 +1,27 @@
 import { z } from "zod";
 import { ToolResult } from "../types";
-import { loadNetworkConfig, createNetworkProvider } from "../networkConfig";
+import { loadNetworkConfig, createEntrypoint } from "../networkConfig";
 import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
-import { Address, AbiRegistry, SmartContractQuery, ArgSerializer, SmartContractTransactionsFactory, TransactionsFactoryConfig, NativeSerializer } from "@multiversx/sdk-core";
-import fs from "fs";
-import path from "path";
-
-let validationAbi: AbiRegistry | undefined;
-
-function initializeValidationAbi() {
-    if (validationAbi) return;
-    const abiPath = path.join(__dirname, "../../abis/validation-registry.abi.json");
-    validationAbi = AbiRegistry.create(JSON.parse(fs.readFileSync(abiPath, "utf8")));
-}
+import { Address, Abi } from "@multiversx/sdk-core";
+import validationAbiJson from "../../abis/validation-registry.abi.json";
 
 /**
  * Check if a specific job has been verified on-chain.
  */
 export async function isJobVerified(jobId: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
-    const provider = createNetworkProvider(config);
-    initializeValidationAbi();
+    const entrypoint = createEntrypoint(config);
+    const abi = Abi.create(validationAbiJson);
+    const controller = entrypoint.createSmartContractController(abi);
 
     try {
-        const serializer = new ArgSerializer();
-        const endpoint = validationAbi!.getEndpoint("is_job_verified");
-
-        const query = new SmartContractQuery({
+        const results = await controller.query({
             contract: Address.newFromBech32(REGISTRY_ADDRESSES.VALIDATION),
             function: "is_job_verified",
-            arguments: serializer.valuesToBuffers(NativeSerializer.nativeToTypedValues([Buffer.from(jobId)], endpoint))
+            arguments: [Buffer.from(jobId)],
         });
 
-        const response = await provider.queryContract(query);
-        const values = serializer.buffersToValues(response.returnDataParts.map(p => Buffer.from(p)), endpoint.output);
-
-        const isVerified = values[0]?.valueOf() === true;
+        const isVerified = results[0]?.valueOf() === true;
 
         return {
             content: [{
@@ -57,28 +43,22 @@ export async function isJobVerified(jobId: string): Promise<ToolResult> {
  */
 export async function submitJobProof(jobId: string, proofHash: string, sender?: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
-    initializeValidationAbi();
+    const entrypoint = createEntrypoint(config);
+    const abi = Abi.create(validationAbiJson);
+    const factory = entrypoint.createSmartContractTransactionsFactory(abi);
 
     try {
         const senderAddress = sender ? Address.newFromBech32(sender) : new Address(Buffer.alloc(32));
-
-        const factory = new SmartContractTransactionsFactory({
-            abi: validationAbi!,
-            config: new TransactionsFactoryConfig({ chainID: config.chainId })
-        });
-
-        const endpoint = validationAbi!.getEndpoint("submit_proof");
-        const typedArgs = NativeSerializer.nativeToTypedValues([
-            Buffer.from(jobId),
-            Buffer.from(proofHash, "hex")
-        ], endpoint);
 
         const tx = await factory.createTransactionForExecute(
             senderAddress,
             {
                 contract: Address.newFromBech32(REGISTRY_ADDRESSES.VALIDATION),
                 function: "submit_proof",
-                arguments: typedArgs,
+                arguments: [
+                    Buffer.from(jobId),
+                    Buffer.from(proofHash, "hex")
+                ],
                 gasLimit: 15_000_000n
             }
         );
@@ -100,28 +80,22 @@ export async function submitJobProof(jobId: string, proofHash: string, sender?: 
  */
 export async function verifyJob(jobId: string, status: boolean, sender?: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
-    initializeValidationAbi();
+    const entrypoint = createEntrypoint(config);
+    const abi = Abi.create(validationAbiJson);
+    const factory = entrypoint.createSmartContractTransactionsFactory(abi);
 
     try {
         const senderAddress = sender ? Address.newFromBech32(sender) : new Address(Buffer.alloc(32));
-
-        const factory = new SmartContractTransactionsFactory({
-            abi: validationAbi!,
-            config: new TransactionsFactoryConfig({ chainID: config.chainId })
-        });
-
-        const endpoint = validationAbi!.getEndpoint("verify_job");
-        const typedArgs = NativeSerializer.nativeToTypedValues([
-            Buffer.from(jobId),
-            status
-        ], endpoint);
 
         const tx = await factory.createTransactionForExecute(
             senderAddress,
             {
                 contract: Address.newFromBech32(REGISTRY_ADDRESSES.VALIDATION),
                 function: "verify_job",
-                arguments: typedArgs,
+                arguments: [
+                    Buffer.from(jobId),
+                    status
+                ],
                 gasLimit: 10_000_000n
             }
         );

@@ -1,89 +1,62 @@
 import { z } from "zod";
 import { ToolResult } from "../types";
-import { loadNetworkConfig, createNetworkProvider } from "../networkConfig";
+import { loadNetworkConfig, createEntrypoint } from "../networkConfig";
+import { Abi, Address } from "@multiversx/sdk-core";
+import identityAbiJson from "../../abis/identity-registry.abi.json";
+import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
 
 /**
- * Fetches the ARF (Agent Registration File) manifest for a given Agent ID (nonce).
- * 
- * Data format: register_agent@<nameHex>@<uriHex>@<publicKeyHex>[@metadata...]
- * Data format: update_agent@<nonceHex>@<uriHex>@<publicKeyHex>[@metadata...]
+ * Agent details structure matching the ABI
  */
-interface TransactionData {
-    data: string;
-}
-
-interface Manifest {
+interface AgentDetails {
     name: string;
     uri: string;
     public_key: string;
-    [key: string]: unknown;
+    owner: Address;
+    metadata: Array<{ key: string; value: string }>;
 }
 
 /**
  * Fetches the ARF (Agent Registration File) manifest for a given Agent ID (nonce).
- * 
- * Data format: register_agent@<nameHex>@<uriHex>@<publicKeyHex>[@metadata...]
- * Data format: update_agent@<nonceHex>@<uriHex>@<publicKeyHex>[@metadata...]
  */
 export async function getAgentManifest(agentNonce: number): Promise<ToolResult> {
     const config = loadNetworkConfig();
+    const entrypoint = createEntrypoint(config);
+    const abi = Abi.create(identityAbiJson);
+    const controller = entrypoint.createSmartContractController(abi);
 
     try {
-        const api = createNetworkProvider(config);
-
-        // Fetch transactions for the Registry contract
-        const txs = await api.doGetGeneric(`transactions?size=50&order=desc`) as TransactionData[];
-
-        if (!txs || txs.length === 0) {
-            return {
-                content: [{ type: "text", text: `No registration transactions found on network.` }]
-            };
-        }
-
-        // Filter for agent registration/update transactions
-        const agentTxs = txs.filter((tx: TransactionData) => {
-            const data = tx.data ? tx.data.toString() : "";
-            return (data.startsWith("register_agent@") || data.startsWith("update_agent@"));
+        const results = await controller.query({
+            contract: Address.newFromBech32(REGISTRY_ADDRESSES.IDENTITY),
+            function: "get_agent",
+            arguments: [agentNonce],
         });
 
-        if (agentTxs.length === 0) {
+        if (!results || results.length === 0) {
             return {
-                content: [{ type: "text", text: `Manifest for Agent #${agentNonce} not found in recent history.` }]
+                content: [{ type: "text", text: `Agent #${agentNonce} not found.` }]
             };
         }
 
-        const tx = agentTxs[0];
-        const dataField = tx.data ? tx.data.toString() : "";
-        const parts = dataField.split("@");
+        const agentDetails = results[0] as AgentDetails;
 
-        // Format: register_agent@name@uri@pk[@metadata...] (4+ parts)
-        // Format: update_agent@nonce@uri@pk[@metadata...] (4+ parts)
-        if (parts.length < 4) {
-            return {
-                content: [{ type: "text", text: "Invalid registration data format. Expected: function@name@uri@pk" }]
-            };
-        }
-
-        const isRegistration = dataField.startsWith("register_agent@");
-        const nameOrNonce = Buffer.from(parts[1], "hex").toString("utf-8");
-        const uri = Buffer.from(parts[2], "hex").toString("utf-8");
-        const publicKey = parts[3];
-
-        let manifest: Manifest = {
-            name: isRegistration ? nameOrNonce : `Agent #${nameOrNonce}`,
-            uri: uri,
-            public_key: publicKey
+        // Resolve internal manifest if URI is a data URI
+        let manifest: any = {
+            name: agentDetails.name,
+            uri: agentDetails.uri,
+            public_key: agentDetails.public_key,
+            owner: agentDetails.owner.toBech32(),
+            metadata: agentDetails.metadata.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {})
         };
 
-        // If URI is a base64 data URI, resolve it inline
-        if (uri.startsWith("data:application/json;base64,")) {
+        if (agentDetails.uri.startsWith("data:application/json;base64,")) {
             try {
-                const base64Data = uri.replace("data:application/json;base64,", "");
+                const base64Data = agentDetails.uri.replace("data:application/json;base64,", "");
                 const jsonStr = Buffer.from(base64Data, "base64").toString("utf-8");
                 const arfData = JSON.parse(jsonStr);
                 manifest = { ...manifest, ...arfData };
             } catch {
-                // URI is not resolvable inline
+                // Ignore parsing errors
             }
         }
 
