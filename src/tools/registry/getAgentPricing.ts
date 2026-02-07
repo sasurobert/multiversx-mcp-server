@@ -15,19 +15,19 @@ export async function getAgentPricing(agentNonce: number, serviceId: string): Pr
     const controller = entrypoint.createSmartContractController(abi);
 
     try {
-        const priceResults = await controller.query({
+        const configResults = await controller.query({
             contract: Address.newFromBech32(REGISTRY_ADDRESSES.IDENTITY),
-            function: "get_agent_service_price",
+            function: "get_agent_service_config",
             arguments: [agentNonce, Buffer.from(serviceId)],
         });
 
-        if (!priceResults || priceResults.length === 0) {
+        if (!configResults || configResults.length === 0) {
             return {
-                content: [{ type: "text", text: `Pricing not found for Agent #${agentNonce} service: ${serviceId}` }]
+                content: [{ type: "text", text: `Pricing configuration not found for Agent #${agentNonce} service: ${serviceId}` }]
             };
         }
 
-        const price = priceResults[0] as bigint;
+        const serviceConfig = configResults[0] as any;
 
         return {
             content: [{
@@ -35,8 +35,9 @@ export async function getAgentPricing(agentNonce: number, serviceId: string): Pr
                 text: JSON.stringify({
                     agent_id: agentNonce,
                     service_id: serviceId,
-                    price: price.toString(),
-                    token: "EGLD", // Default for now, should be expanded to fetch token/nonce if available in ABI
+                    price: serviceConfig.price.toString(),
+                    token: serviceConfig.token.identifier.toString(),
+                    pnonce: Number(serviceConfig.pnonce),
                 }, null, 2)
             }]
         };
