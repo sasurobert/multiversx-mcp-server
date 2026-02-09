@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ToolResult } from "../types";
 import { loadNetworkConfig, createEntrypoint } from "../networkConfig";
-import { Abi, Address } from "@multiversx/sdk-core";
+import { Address } from "@multiversx/sdk-core";
+import { createPatchedAbi } from "../../utils/patchAbi";
 import identityAbiJson from "../../abis/identity-registry.abi.json";
 import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
 
@@ -11,7 +12,7 @@ import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
 export async function getAgentPricing(agentNonce: number, serviceId: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
     const entrypoint = createEntrypoint(config);
-    const abi = Abi.create(identityAbiJson);
+    const abi = createPatchedAbi(identityAbiJson);
     const controller = entrypoint.createSmartContractController(abi);
 
     try {

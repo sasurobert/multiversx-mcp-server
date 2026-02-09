@@ -11,6 +11,7 @@ export interface IInnerTransaction {
     value: string;
     receiver: string;
     sender: string;
+    gasPrice?: number;
     gasLimit: number | string;
     chainID: string;
     data?: string;
@@ -53,7 +54,7 @@ export async function createRelayedV3(
         const api = createNetworkProvider(config);
 
         // Reconstruct inner transaction from plain object
-        const tx = Transaction.newFromPlainObject(innerTransaction);
+        const tx = Transaction.newFromPlainObject({ gasPrice: 1000000000, ...innerTransaction } as any);
         const sender = tx.sender;
 
         // Determine Relayer Wallet
@@ -96,7 +97,7 @@ export async function createRelayedV3(
         tx.relayerSignature = signature;
 
         // 3. Simulation BEFORE broadcast
-        const simulationResult: ISimulationResult = await api.simulateTransaction(tx);
+        const simulationResult = await api.simulateTransaction(tx) as unknown as ISimulationResult;
         Logger.info({
             simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
         }, "Relayer: Simulation result received");
@@ -108,7 +109,7 @@ export async function createRelayedV3(
         const resultStatus = statusFromStatus || statusFromRaw || execution?.result;
 
         if (resultStatus !== 'success') {
-            const message = execution?.message || simulationResult?.error || 'Unknown error';
+            const message = (execution as any)?.message || simulationResult?.error || 'Unknown error';
             Logger.error({
                 error: message,
                 simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)

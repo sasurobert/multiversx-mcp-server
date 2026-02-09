@@ -2,7 +2,8 @@ import { z } from "zod";
 import { ToolResult } from "../types";
 import { loadNetworkConfig, createEntrypoint } from "../networkConfig";
 import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
-import { Address, Abi } from "@multiversx/sdk-core";
+import { Address } from "@multiversx/sdk-core";
+import { createPatchedAbi } from "../../utils/patchAbi";
 import validationAbiJson from "../../abis/validation-registry.abi.json";
 
 /**
@@ -11,7 +12,7 @@ import validationAbiJson from "../../abis/validation-registry.abi.json";
 export async function isJobVerified(jobId: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
     const entrypoint = createEntrypoint(config);
-    const abi = Abi.create(validationAbiJson);
+    const abi = createPatchedAbi(validationAbiJson);
     const controller = entrypoint.createSmartContractController(abi);
 
     try {
@@ -44,7 +45,7 @@ export async function isJobVerified(jobId: string): Promise<ToolResult> {
 export async function submitJobProof(jobId: string, proofHash: string, sender?: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
     const entrypoint = createEntrypoint(config);
-    const abi = Abi.create(validationAbiJson);
+    const abi = createPatchedAbi(validationAbiJson);
     const factory = entrypoint.createSmartContractTransactionsFactory(abi);
 
     try {
@@ -81,7 +82,7 @@ export async function submitJobProof(jobId: string, proofHash: string, sender?: 
 export async function verifyJob(jobId: string, status: boolean, sender?: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
     const entrypoint = createEntrypoint(config);
-    const abi = Abi.create(validationAbiJson);
+    const abi = createPatchedAbi(validationAbiJson);
     const factory = entrypoint.createSmartContractTransactionsFactory(abi);
 
     try {
