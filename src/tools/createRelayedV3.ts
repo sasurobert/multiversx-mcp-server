@@ -6,6 +6,37 @@ import { loadWalletConfig, loadWalletFromPem, loadWalletsFromDir, LoadedWallet }
 
 const txComputer = new TransactionComputer();
 
+export interface IInnerTransaction {
+    nonce: number;
+    value: string;
+    receiver: string;
+    sender: string;
+    gasLimit: number | string;
+    chainID: string;
+    data?: string;
+    version?: number;
+    options?: number;
+    guardian?: string;
+    signature?: string;
+    sndrRelay?: string;
+}
+
+export interface ISimulationResult {
+    status?: { status: string };
+    raw?: { status: string };
+    execution?: {
+        result: string;
+        message?: string;
+        gasConsumed?: bigint;
+    };
+    result?: {
+        execution?: {
+            result: string;
+        };
+    };
+    error?: string;
+}
+
 /**
  * Acts as a relayer for a signed transaction (RelayedV3).
  * The inner transaction must be already signed by the user.
@@ -13,7 +44,7 @@ const txComputer = new TransactionComputer();
  * Requires MVX_WALLET_PEM to be set.
  */
 export async function createRelayedV3(
-    innerTransaction: any
+    innerTransaction: IInnerTransaction
 ): Promise<ToolResult> {
     const walletConfig = loadWalletConfig();
 
@@ -65,7 +96,7 @@ export async function createRelayedV3(
         tx.relayerSignature = signature;
 
         // 3. Simulation BEFORE broadcast
-        const simulationResult: any = await api.simulateTransaction(tx);
+        const simulationResult: ISimulationResult = await api.simulateTransaction(tx);
         Logger.info({
             simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
         }, "Relayer: Simulation result received");

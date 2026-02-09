@@ -1,9 +1,9 @@
-import { test, expect } from "@playwright/test";
-import { createE2eClient } from "./harness";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 test.describe("Read-only tools E2E", () => {
-    let client: any;
-    let transport: any;
+    let client: Client;
+    let transport: StdioClientTransport;
 
     test.beforeAll(async () => {
         const result = await createE2eClient();

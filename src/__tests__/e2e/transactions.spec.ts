@@ -1,9 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { createE2eClient } from "./harness";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-test.describe("Transaction tools E2E (Unsigned)", () => {
-    let client: any;
-    let transport: any;
+test.describe("Transaction tools E2E", () => {
+    let client: Client;
+    let transport: StdioClientTransport;
 
     test.beforeAll(async () => {
         const result = await createE2eClient({ MVX_SIGNING_MODE: "unsigned" });
