@@ -79,7 +79,17 @@ describe("create-relayed-v3", () => {
             throw new Error("Relayer wallet error");
         });
 
-        const result = await createRelayedV3({});
+        const dummyTx = {
+            nonce: 0,
+            value: "0",
+            receiver: "erd1...",
+            sender: "erd1...",
+            gasLimit: "0",
+            chainID: "D",
+            version: 1
+        };
+
+        const result = await createRelayedV3(dummyTx);
         expect(result.content[0].text).toContain("Failed to create RelayedV3 transaction: Relayer wallet error");
     });
 });
