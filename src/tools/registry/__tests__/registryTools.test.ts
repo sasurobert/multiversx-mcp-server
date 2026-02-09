@@ -86,20 +86,23 @@ describe("Registry Tools", () => {
 
     describe("get-agent-manifest", () => {
         it("should fetch and parse agent manifest using ABI controller", async () => {
-            const mockAgentDetails = {
-                name: "TestAgent",
-                uri: "https://test.com",
-                public_key: "def456",
-                owner: Address.newFromBech32("erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu"),
-                metadata: [{ key: "version", value: "1.0" }]
-            };
-            mockControllerQuery.mockResolvedValue([mockAgentDetails]);
+            // getAgentManifest makes 4 sequential queries:
+            // 1. get_agent → { name, public_key }
+            // 2. get_agent_owner → Address
+            // 3. get_agent_metadata → [key, value, ...]
+            // 4. get_agent_token_id → tokenId (for NFT URI lookup)
+            mockControllerQuery
+                .mockResolvedValueOnce([{ name: "TestAgent", public_key: Buffer.from("def456") }])
+                .mockResolvedValueOnce([Address.newFromBech32("erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu")])
+                .mockResolvedValueOnce(["version", "1.0"])
+                .mockResolvedValueOnce(["AGENT-abc123"]);
 
             const result = await getAgentManifest(1);
             const content = JSON.parse(result.content[0].text);
 
             expect(content.name).toBe("TestAgent");
-            expect(content.uri).toBe("https://test.com");
+            expect(content.owner).toBe("erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu");
+            expect(content.metadata).toEqual({ version: "1.0" });
         });
 
         it("should handle empty results from controller query", async () => {

@@ -10,18 +10,26 @@ The official **Model Context Protocol (MCP)** server for the MultiversX Blockcha
 - **Dual Mode**: Runs via Stdio (for desktop agents) or HTTP (for web services/Google Shopping feeds).
 - **UCP Compliant**: Implements Universal Commerce Protocol for Agentic Commerce discovery.
 
-## quick-start-integration-guide
+## Quick Start
 
-### 1. Installation
 ```bash
-git clone https://github.com/multiversx/multiversx-mcp-server.git
+git clone https://github.com/sasurobert/multiversx-mcp-server.git
 cd multiversx-mcp-server
-npm install
-npm run build
+chmod +x setup.sh && ./setup.sh
 ```
 
-### 2. Configuration
-Create a `.env` file (see `.env.example`):
+The setup script installs dependencies, creates a default `.env`, builds the project, and runs tests.
+
+### Prerequisites
+
+| Tool | Version | Required |
+|------|---------|----------|
+| Node.js | v18+ | Yes |
+| npm | v9+ | Yes |
+
+### Configuration
+
+Create a `.env` file (or let `setup.sh` create one from `.env.example`):
 ```env
 MVX_NETWORK=devnet
 MVX_SIGNING_MODE=signed
