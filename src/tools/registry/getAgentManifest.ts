@@ -41,7 +41,7 @@ export async function getAgentManifest(agentNonce: number): Promise<ToolResult> 
         const agentDetails = results[0] as AgentDetails;
 
         // Resolve internal manifest if URI is a data URI
-        let manifest: any = {
+        let manifest: Record<string, unknown> = {
             name: agentDetails.name,
             uri: agentDetails.uri,
             public_key: agentDetails.public_key,

@@ -20,6 +20,30 @@
     },
     "endpoints": [
         {
+            "name": "set_identity_contract_address",
+            "onlyOwner": true,
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "address",
+                    "type": "Address"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "name": "set_validation_contract_address",
+            "onlyOwner": true,
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "address",
+                    "type": "Address"
+                }
+            ],
+            "outputs": []
+        },
+        {
             "name": "submit_feedback",
             "mutability": "mutable",
             "inputs": [

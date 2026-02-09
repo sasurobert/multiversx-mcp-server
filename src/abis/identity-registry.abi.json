@@ -1,14 +1,5 @@
 {
     "buildInfo": {
-        "rustc": {
-            "version": "1.91.1",
-            "commitHash": "ed61e7d7e242494fb7057f2657300d9e77bb4fcb",
-            "commitDate": "2025-11-07",
-            "channel": "Stable",
-            "host": "aarch64-apple-darwin",
-            "short": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
-            "llvmVersion": "21.1"
-        },
         "contractCrate": {
             "name": "identity-registry",
             "version": "0.1.0"
@@ -152,6 +143,28 @@
             ]
         },
         {
+            "docs": [
+                "Get the complete payment configuration for a specific agent service in one call."
+            ],
+            "name": "get_agent_service_config",
+            "mutability": "readonly",
+            "inputs": [
+                {
+                    "name": "nonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "service_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "AgentServiceConfig"
+                }
+            ]
+        },
+        {
             "name": "get_agent",
             "mutability": "readonly",
             "inputs": [
@@ -232,6 +245,44 @@
             "outputs": [
                 {
                     "type": "BigUint"
+                }
+            ]
+        },
+        {
+            "name": "get_agent_service_payment_token",
+            "mutability": "readonly",
+            "inputs": [
+                {
+                    "name": "nonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "service_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "EgldOrEsdtTokenIdentifier"
+                }
+            ]
+        },
+        {
+            "name": "get_agent_service_payment_nonce",
+            "mutability": "readonly",
+            "inputs": [
+                {
+                    "name": "nonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "service_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "u64"
                 }
             ]
         }
@@ -319,6 +370,23 @@
                 {
                     "name": "uri",
                     "type": "bytes"
+                }
+            ]
+        },
+        "AgentServiceConfig": {
+            "type": "struct",
+            "fields": [
+                {
+                    "name": "token",
+                    "type": "EgldOrEsdtTokenIdentifier"
+                },
+                {
+                    "name": "pnonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "price",
+                    "type": "BigUint"
                 }
             ]
         },

@@ -1,14 +1,5 @@
 {
     "buildInfo": {
-        "rustc": {
-            "version": "1.91.1",
-            "commitHash": "ed61e7d7e242494fb7057f2657300d9e77bb4fcb",
-            "commitDate": "2025-11-07",
-            "channel": "Stable",
-            "host": "aarch64-apple-darwin",
-            "short": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
-            "llvmVersion": "21.1"
-        },
         "contractCrate": {
             "name": "validation-registry",
             "version": "0.1.0"

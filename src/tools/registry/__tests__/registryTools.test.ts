@@ -5,6 +5,10 @@ import { isJobVerified, submitJobProof, verifyJob } from "../jobValidation";
 import { createNetworkProvider } from "../../networkConfig";
 import { Address } from "@multiversx/sdk-core";
 
+// --- Shared mock fns for entrypoint-based tools (safe for jest.mock hoisting) ---
+const mockControllerQuery = jest.fn();
+const mockFactoryExecute = jest.fn();
+
 jest.mock("fs", () => ({
     readFileSync: jest.fn().mockReturnValue("{}"),
     existsSync: jest.fn().mockReturnValue(true),
@@ -31,7 +35,7 @@ jest.mock("@multiversx/sdk-core", () => {
                     sender: "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv",
                     gasLimit: 60000000,
                     chainID: "T",
-                    data: "YQ==", // "a" in base64
+                    data: "YQ==",
                     version: 2
                 })
             })
@@ -51,56 +55,75 @@ jest.mock("../../networkConfig", () => ({
     createNetworkProvider: jest.fn().mockReturnValue({
         doGetGeneric: jest.fn(),
         queryContract: jest.fn(),
-    })
+    }),
+    createEntrypoint: jest.fn().mockImplementation(() => ({
+        createSmartContractController: jest.fn().mockReturnValue({ query: mockControllerQuery }),
+        createSmartContractTransactionsFactory: jest.fn().mockReturnValue({
+            createTransactionForExecute: mockFactoryExecute
+        })
+    }))
 }));
 
 describe("Registry Tools", () => {
-    const mockApi = createNetworkProvider({} as any);
+    const mockApi = createNetworkProvider({} as unknown as Parameters<typeof createNetworkProvider>[0]);
+
+    beforeEach(() => {
+        mockControllerQuery.mockReset();
+        mockFactoryExecute.mockReset();
+        mockFactoryExecute.mockResolvedValue({
+            toPlainObject: () => ({
+                nonce: 1,
+                value: "0",
+                receiver: "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv",
+                sender: "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv",
+                gasLimit: 60000000,
+                chainID: "T",
+                data: "YQ==",
+                version: 2
+            })
+        });
+    });
 
     describe("get-agent-manifest", () => {
-        it("should fetch and parse agent manifest from updateAgent transaction", async () => {
-            const mockTxData = {
-                data: "update_agent@3031@68747470733a2f2f6578616d706c652e636f6d@616263313233"
+        it("should fetch and parse agent manifest using ABI controller", async () => {
+            const mockAgentDetails = {
+                name: "TestAgent",
+                uri: "https://test.com",
+                public_key: "def456",
+                owner: Address.newFromBech32("erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu"),
+                metadata: [{ key: "version", value: "1.0" }]
             };
-            (mockApi.doGetGeneric as jest.Mock).mockResolvedValue([mockTxData]);
-
-            const result = await getAgentManifest(1);
-            const content = JSON.parse(result.content[0].text);
-
-            expect(content.name).toBe("Agent #01");
-            expect(content.uri).toBe("https://example.com");
-            expect(content.public_key).toBe("616263313233");
-        });
-
-        it("should fetch and parse agent manifest from registerAgent transaction", async () => {
-            const mockTxData = {
-                data: "register_agent@546573744167656e74@68747470733a2f2f746573742e636f6d@646566343536"
-            };
-            (mockApi.doGetGeneric as jest.Mock).mockResolvedValue([mockTxData]);
+            mockControllerQuery.mockResolvedValue([mockAgentDetails]);
 
             const result = await getAgentManifest(1);
             const content = JSON.parse(result.content[0].text);
 
             expect(content.name).toBe("TestAgent");
             expect(content.uri).toBe("https://test.com");
-            expect(content.public_key).toBe("646566343536");
         });
 
-        it("should handle invalid registration data format", async () => {
-            (mockApi.doGetGeneric as jest.Mock).mockResolvedValue([{ data: "register_agent@onlyname" }]);
+        it("should handle empty results from controller query", async () => {
+            mockControllerQuery.mockResolvedValue([]);
+
             const result = await getAgentManifest(1);
-            expect(result.content[0].text).toContain("Invalid registration data format");
+            expect(result.content[0].text).toContain("not found");
+        });
+
+        it("should handle query errors gracefully", async () => {
+            mockControllerQuery.mockRejectedValue(new Error("Contract error"));
+            const result = await getAgentManifest(1);
+            expect(result.content[0].text).toContain("Error fetching agent manifest");
         });
     });
 
     describe("get-agent-trust-summary", () => {
         it("should return trust metrics for an agent", async () => {
-            (mockApi.queryContract as jest.Mock).mockImplementation((query) => {
+            (mockApi.queryContract as jest.Mock).mockImplementation((query: { function: string }) => {
                 if (query.function === "getReputationScore") {
-                    return Promise.resolve({ returnDataParts: [Buffer.from([0, 0, 0x23, 0x28])] }); // 9000
+                    return Promise.resolve({ returnDataParts: [Buffer.from([0, 0, 0x23, 0x28])] });
                 }
                 if (query.function === "getTotalJobs") {
-                    return Promise.resolve({ returnDataParts: [Buffer.from([0, 0, 0, 0x64])] }); // 100
+                    return Promise.resolve({ returnDataParts: [Buffer.from([0, 0, 0, 0x64])] });
                 }
                 return Promise.resolve({ returnDataParts: [] });
             });
@@ -127,13 +150,13 @@ describe("Registry Tools", () => {
             const result = await submitAgentFeedback(1, 5);
             const tx = JSON.parse(result.content[0].text);
             expect(tx.receiver).toBeDefined();
-            expect(tx.data).toBe("YQ=="); // matches mock
+            expect(tx.data).toBe("YQ==");
         });
     });
 
     describe("job-validation", () => {
         it("should check if job is verified", async () => {
-            (mockApi.queryContract as jest.Mock).mockResolvedValue({ returnDataParts: [Buffer.from([0x01])] });
+            mockControllerQuery.mockResolvedValue([{ valueOf: () => true }]);
             const result = await isJobVerified("job-1");
             const content = JSON.parse(result.content[0].text);
             expect(content.verified).toBeDefined();
@@ -141,7 +164,7 @@ describe("Registry Tools", () => {
 
         it("should create proof transaction", async () => {
             const customSender = "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv";
-            const result = await submitJobProof("job-1", "68617368", customSender); // "hash" in hex
+            const result = await submitJobProof("job-1", "68617368", customSender);
             const tx = JSON.parse(result.content[0].text);
             expect(tx.sender).toBe(customSender);
         });
@@ -149,9 +172,6 @@ describe("Registry Tools", () => {
         it("should create verify transaction", async () => {
             const customSender = "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv";
             const result = await verifyJob("job-1", true, customSender);
-            if (result.isError) {
-                console.log("VerifyJob Error:", result.content[0].text);
-            }
             const tx = JSON.parse(result.content[0].text);
             expect(tx.sender).toBe(customSender);
         });

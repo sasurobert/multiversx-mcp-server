@@ -1,26 +1,23 @@
 import { getAgentManifest } from "../getAgentManifest";
 import { Address } from "@multiversx/sdk-core";
 
-// Mock SDK components
-jest.mock("@multiversx/sdk-core", () => {
-    const original = jest.requireActual("@multiversx/sdk-core");
-    return {
-        ...original,
-        DevnetEntrypoint: jest.fn().mockImplementation(() => ({
-            createSmartContractController: jest.fn().mockImplementation(() => ({
-                query: jest.fn()
-            }))
-        }))
-    };
-});
+// Mock network config — define mock inline (jest.mock is hoisted above imports)
+const mockQuery = jest.fn();
 
-// Mock network config
 jest.mock("../../networkConfig", () => ({
     loadNetworkConfig: jest.fn().mockReturnValue({ apiUrl: "https://devnet-api.multiversx.com", chainId: "D" }),
-    createNetworkProvider: jest.fn() // Unused in ABI flow
+    createEntrypoint: jest.fn().mockImplementation(() => ({
+        createSmartContractController: jest.fn().mockReturnValue({
+            query: mockQuery
+        })
+    }))
 }));
 
 describe("getAgentManifest", () => {
+    beforeEach(() => {
+        mockQuery.mockReset();
+    });
+
     it("should fetch agent manifest using ABI", async () => {
         const mockAgentDetails = {
             name: "DeFi Bot",
@@ -30,14 +27,7 @@ describe("getAgentManifest", () => {
             metadata: []
         };
 
-        // We need to access the mocked controller
-        // Since we can't easily get the instance from the function call, 
-        // we'll rely on the global mock state if needed, or better, 
-        // define the mock at once.
-        const { DevnetEntrypoint } = require("@multiversx/sdk-core");
-        const mockEntrypoint = new DevnetEntrypoint();
-        const mockController = mockEntrypoint.createSmartContractController();
-        (mockController.query as jest.Mock).mockResolvedValue([mockAgentDetails]);
+        mockQuery.mockResolvedValue([mockAgentDetails]);
 
         const result = await getAgentManifest(1);
 
@@ -48,10 +38,7 @@ describe("getAgentManifest", () => {
     });
 
     it("should handle missing agents", async () => {
-        const { DevnetEntrypoint } = require("@multiversx/sdk-core");
-        const mockEntrypoint = new DevnetEntrypoint();
-        const mockController = mockEntrypoint.createSmartContractController();
-        (mockController.query as jest.Mock).mockRejectedValue(new Error("Agent not found"));
+        mockQuery.mockRejectedValue(new Error("Agent not found"));
 
         const result = await getAgentManifest(999);
         expect(result.content[0].text).toContain("Error fetching agent manifest");

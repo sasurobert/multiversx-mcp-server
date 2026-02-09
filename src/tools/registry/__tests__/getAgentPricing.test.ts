@@ -1,38 +1,49 @@
 import { getAgentPricing } from "../getAgentPricing";
-import { Address } from "@multiversx/sdk-core";
 
-// Mock SDK components
-jest.mock("@multiversx/sdk-core", () => {
-    const original = jest.requireActual("@multiversx/sdk-core");
-    return {
-        ...original,
-        DevnetEntrypoint: jest.fn().mockImplementation(() => ({
-            createSmartContractController: jest.fn().mockImplementation(() => ({
-                query: jest.fn()
-            }))
-        }))
-    };
-});
+// Shared mock — jest.fn() is safe for jest.mock hoisting
+const mockQuery = jest.fn();
 
-// Mock network config
 jest.mock("../../networkConfig", () => ({
     loadNetworkConfig: jest.fn().mockReturnValue({ apiUrl: "https://devnet-api.multiversx.com", chainId: "D" }),
-    createEntrypoint: jest.requireActual("@multiversx/sdk-core").DevnetEntrypoint
+    createEntrypoint: jest.fn().mockImplementation(() => ({
+        createSmartContractController: jest.fn().mockReturnValue({
+            query: mockQuery
+        })
+    }))
 }));
 
 describe("getAgentPricing", () => {
+    beforeEach(() => {
+        mockQuery.mockReset();
+    });
+
     it("should fetch agent pricing using ABI", async () => {
-        const mockPrice = 5000000000000000n; // 0.005 EGLD
-        const { DevnetEntrypoint } = require("@multiversx/sdk-core");
-        const mockEntrypoint = new DevnetEntrypoint();
-        const mockController = mockEntrypoint.createSmartContractController();
-        (mockController.query as jest.Mock).mockResolvedValue([mockPrice]);
+        const mockServiceConfig = {
+            price: 5000000000000000n,
+            token: { identifier: { toString: () => "EGLD-000000" } },
+            pnonce: 0n,
+        };
+        mockQuery.mockResolvedValue([mockServiceConfig]);
 
         const result = await getAgentPricing(1, "chat");
 
         expect(result.content[0].type).toBe("text");
         const pricing = JSON.parse(result.content[0].text);
-        expect(pricing.price).toBe(mockPrice.toString());
+        expect(pricing.price).toBe("5000000000000000");
         expect(pricing.service_id).toBe("chat");
+    });
+
+    it("should handle missing service config", async () => {
+        mockQuery.mockResolvedValue([]);
+
+        const result = await getAgentPricing(1, "unknown-service");
+        expect(result.content[0].text).toContain("not found");
+    });
+
+    it("should handle query errors", async () => {
+        mockQuery.mockRejectedValue(new Error("Contract not found"));
+
+        const result = await getAgentPricing(999, "chat");
+        expect(result.content[0].text).toContain("Error fetching agent pricing");
     });
 });

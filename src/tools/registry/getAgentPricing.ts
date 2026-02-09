@@ -27,7 +27,13 @@ export async function getAgentPricing(agentNonce: number, serviceId: string): Pr
             };
         }
 
-        const serviceConfig = configResults[0] as any;
+        interface ServiceConfig {
+            price: { toString(): string };
+            token: { identifier: { toString(): string } };
+            pnonce: bigint | number;
+        }
+
+        const serviceConfig = configResults[0] as ServiceConfig;
 
         return {
             content: [{
