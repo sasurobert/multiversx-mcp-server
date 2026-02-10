@@ -5,7 +5,7 @@ import { isJobVerified, submitJobProof, verifyJob } from "../jobValidation";
 import { createNetworkProvider } from "../../networkConfig";
 import { Address } from "@multiversx/sdk-core";
 
-// --- Shared mock fns for entrypoint-based tools (safe for jest.mock hoisting) ---
+// --- Shared mock fns for entrypoint-based tools ---
 const mockControllerQuery = jest.fn();
 const mockFactoryExecute = jest.fn();
 
@@ -86,11 +86,6 @@ describe("Registry Tools", () => {
 
     describe("get-agent-manifest", () => {
         it("should fetch and parse agent manifest using ABI controller", async () => {
-            // getAgentManifest makes 4 sequential queries:
-            // 1. get_agent → { name, public_key }
-            // 2. get_agent_owner → Address
-            // 3. get_agent_metadata → [key, value, ...]
-            // 4. get_agent_token_id → tokenId (for NFT URI lookup)
             mockControllerQuery
                 .mockResolvedValueOnce([{ name: "TestAgent", public_key: Buffer.from("def456") }])
                 .mockResolvedValueOnce([Address.newFromBech32("erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu")])
@@ -120,37 +115,45 @@ describe("Registry Tools", () => {
     });
 
     describe("get-agent-trust-summary", () => {
-        it("should return trust metrics for an agent", async () => {
-            (mockApi.queryContract as jest.Mock).mockImplementation((query: { function: string }) => {
-                if (query.function === "getReputationScore") {
-                    return Promise.resolve({ returnDataParts: [Buffer.from([0, 0, 0x23, 0x28])] });
-                }
-                if (query.function === "getTotalJobs") {
-                    return Promise.resolve({ returnDataParts: [Buffer.from([0, 0, 0, 0x64])] });
-                }
-                return Promise.resolve({ returnDataParts: [] });
-            });
+        it("should return trust metrics when reputation is available", async () => {
+            // Now uses controller.query via getAgentReputation (entrypoint-based)
+            mockControllerQuery
+                .mockResolvedValueOnce([{ valueOf: () => 90n }])  // get_reputation_score
+                .mockResolvedValueOnce([{ valueOf: () => 100n }]); // get_total_jobs
 
             const result = await getAgentTrustSummary(1);
             const content = JSON.parse(result.content[0].text);
 
-            expect(Number(content.reputation_score) > 0).toBe(true);
-            expect(Number(content.total_completed_jobs) > 0).toBe(true);
+            expect(content.reputation_score).toBeDefined();
+            expect(content.total_completed_jobs).toBeDefined();
             expect(content.status).toBe("highly_trusted");
+        });
+
+        it("should return degraded response when reputation fails", async () => {
+            mockControllerQuery.mockRejectedValue(new Error("Contract unavailable"));
+
+            const result = await getAgentTrustSummary(1);
+            const content = JSON.parse(result.content[0].text);
+
+            expect(content.status).toBe("unknown");
+            expect(content.error).toContain("Error fetching reputation");
         });
     });
 
     describe("agent-reputation", () => {
-        it("should return reputation data", async () => {
-            (mockApi.queryContract as jest.Mock).mockResolvedValue({ returnDataParts: [Buffer.from([0, 0, 0x23, 0x28])] });
+        it("should return reputation data via controller query", async () => {
+            mockControllerQuery
+                .mockResolvedValueOnce([{ valueOf: () => 85n }])  // get_reputation_score
+                .mockResolvedValueOnce([{ valueOf: () => 42n }]); // get_total_jobs
 
             const result = await getAgentReputation(1);
             const content = JSON.parse(result.content[0].text);
-            expect(content.reputation_score).toBeDefined();
+            expect(content.reputation_score).toBe("85");
+            expect(content.total_completed_jobs).toBe("42");
         });
 
-        it("should create feedback transaction", async () => {
-            const result = await submitAgentFeedback(1, 5);
+        it("should create feedback transaction with jobId", async () => {
+            const result = await submitAgentFeedback(1, 5, "job-abc");
             const tx = JSON.parse(result.content[0].text);
             expect(tx.receiver).toBeDefined();
             expect(tx.data).toBe("YQ==");
@@ -172,9 +175,9 @@ describe("Registry Tools", () => {
             expect(tx.sender).toBe(customSender);
         });
 
-        it("should create verify transaction", async () => {
+        it("should create verify transaction (without status arg)", async () => {
             const customSender = "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv";
-            const result = await verifyJob("job-1", true, customSender);
+            const result = await verifyJob("job-1", customSender);
             const tx = JSON.parse(result.content[0].text);
             expect(tx.sender).toBe(customSender);
         });

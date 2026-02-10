@@ -79,7 +79,7 @@ export async function submitJobProof(jobId: string, proofHash: string, sender?: 
 /**
  * Build a transaction to verify a job (Oracle/Validator only).
  */
-export async function verifyJob(jobId: string, status: boolean, sender?: string): Promise<ToolResult> {
+export async function verifyJob(jobId: string, sender?: string): Promise<ToolResult> {
     const config = loadNetworkConfig();
     const entrypoint = createEntrypoint(config);
     const abi = createPatchedAbi(validationAbiJson);
@@ -95,7 +95,6 @@ export async function verifyJob(jobId: string, status: boolean, sender?: string)
                 function: "verify_job",
                 arguments: [
                     Buffer.from(jobId),
-                    status
                 ],
                 gasLimit: 10_000_000n
             }
@@ -131,6 +130,5 @@ export const verifyJobToolName = "verify-job";
 export const verifyJobToolDescription = "Create an unsigned transaction to finalize job verification (Oracle only)";
 export const verifyJobParamScheme = {
     jobId: z.string().describe("The Job ID to verify"),
-    status: z.boolean().describe("True for success, False for failure"),
     sender: z.string().optional().describe("The address of the Oracle/Validator"),
 };

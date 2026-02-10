@@ -1,54 +1,39 @@
 import { z } from "zod";
 import { ToolResult } from "../types";
-import { loadNetworkConfig, createNetworkProvider } from "../networkConfig";
+import { loadNetworkConfig, createEntrypoint } from "../networkConfig";
 import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
-import { Address, AbiRegistry, SmartContractQuery, ArgSerializer, SmartContractTransactionsFactory, TransactionsFactoryConfig, NativeSerializer } from "@multiversx/sdk-core";
-import fs from "fs";
-import path from "path";
-
-let reputationAbi: AbiRegistry | undefined;
-
-function initializeReputationAbi() {
-    if (reputationAbi) return;
-    const abiPath = path.join(__dirname, "../../abis/reputation-registry.abi.json");
-    reputationAbi = AbiRegistry.create(JSON.parse(fs.readFileSync(abiPath, "utf8")));
-}
+import { Address } from "@multiversx/sdk-core";
+import { createPatchedAbi } from "../../utils/patchAbi";
+import reputationAbiJson from "../../abis/reputation-registry.abi.json";
 
 /**
  * Fetch reputation score and total jobs for an agent.
+ * Uses the Entrypoint + SmartContractController pattern for consistent querying.
  */
 export async function getAgentReputation(agentNonce: number): Promise<ToolResult> {
     const config = loadNetworkConfig();
-    const provider = createNetworkProvider(config);
-    initializeReputationAbi();
+    const entrypoint = createEntrypoint(config);
+    const abi = createPatchedAbi(reputationAbiJson);
+    const controller = entrypoint.createSmartContractController(abi);
 
     try {
-        const serializer = new ArgSerializer();
-        const scoreEndpoint = reputationAbi!.getEndpoint("getReputationScore");
-        const totalJobsEndpoint = reputationAbi!.getEndpoint("getTotalJobs");
+        const contractAddress = Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION);
 
-        const scoreQuery = new SmartContractQuery({
-            contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
-            function: "getReputationScore",
-            arguments: serializer.valuesToBuffers(NativeSerializer.nativeToTypedValues([BigInt(agentNonce)], scoreEndpoint))
-        });
-
-        const totalJobsQuery = new SmartContractQuery({
-            contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
-            function: "getTotalJobs",
-            arguments: serializer.valuesToBuffers(NativeSerializer.nativeToTypedValues([BigInt(agentNonce)], totalJobsEndpoint))
-        });
-
-        const [scoreRes, totalJobsRes] = await Promise.all([
-            provider.queryContract(scoreQuery),
-            provider.queryContract(totalJobsQuery)
+        const [scoreResults, totalJobsResults] = await Promise.all([
+            controller.query({
+                contract: contractAddress,
+                function: "get_reputation_score",
+                arguments: [BigInt(agentNonce)],
+            }),
+            controller.query({
+                contract: contractAddress,
+                function: "get_total_jobs",
+                arguments: [BigInt(agentNonce)],
+            }),
         ]);
 
-        const scoreValues = serializer.buffersToValues(scoreRes.returnDataParts.map(p => Buffer.from(p)), scoreEndpoint.output);
-        const totalJobsValues = serializer.buffersToValues(totalJobsRes.returnDataParts.map(p => Buffer.from(p)), totalJobsEndpoint.output);
-
-        const score = scoreValues[0]?.valueOf().toString() || "0";
-        const totalJobs = totalJobsValues[0]?.valueOf().toString() || "0";
+        const score = scoreResults[0]?.valueOf()?.toString() || "0";
+        const totalJobs = totalJobsResults[0]?.valueOf()?.toString() || "0";
 
         const result = {
             agent_id: agentNonce,
@@ -71,31 +56,32 @@ export async function getAgentReputation(agentNonce: number): Promise<ToolResult
 
 /**
  * Build a transaction to submit feedback for an agent.
+ * ABI signature: submit_feedback(job_id: bytes, agent_nonce: u64, rating: BigUint)
  */
-export async function submitAgentFeedback(agentNonce: number, rating: number, sender?: string): Promise<ToolResult> {
+export async function submitAgentFeedback(
+    agentNonce: number,
+    rating: number,
+    jobId: string,
+    sender?: string,
+): Promise<ToolResult> {
     const config = loadNetworkConfig();
-    initializeReputationAbi();
+    const entrypoint = createEntrypoint(config);
+    const abi = createPatchedAbi(reputationAbiJson);
+    const factory = entrypoint.createSmartContractTransactionsFactory(abi);
 
     try {
         const senderAddress = sender ? Address.newFromBech32(sender) : new Address(Buffer.alloc(32));
-
-        const factory = new SmartContractTransactionsFactory({
-            abi: reputationAbi!,
-            config: new TransactionsFactoryConfig({ chainID: config.chainId })
-        });
-
-        const endpoint = reputationAbi!.getEndpoint("submit_feedback");
-        const typedArgs = NativeSerializer.nativeToTypedValues([
-            BigInt(agentNonce),
-            BigInt(rating)
-        ], endpoint);
 
         const tx = await factory.createTransactionForExecute(
             senderAddress,
             {
                 contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
                 function: "submit_feedback",
-                arguments: typedArgs,
+                arguments: [
+                    Buffer.from(jobId),
+                    BigInt(agentNonce),
+                    BigInt(rating),
+                ],
                 gasLimit: 10_000_000n
             }
         );
@@ -123,5 +109,6 @@ export const submitAgentFeedbackToolDescription = "Create an unsigned transactio
 export const submitAgentFeedbackParamScheme = {
     agentNonce: z.number().describe("The Agent ID (NFT Nonce)"),
     rating: z.number().min(1).max(5).describe("Rating from 1 to 5"),
+    jobId: z.string().describe("The Job ID associated with this feedback"),
     sender: z.string().optional().describe("The address of the feedback submitter (Employer)"),
 };

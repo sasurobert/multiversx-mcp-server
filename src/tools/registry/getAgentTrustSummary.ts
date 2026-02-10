@@ -7,15 +7,37 @@ import { getAgentReputation } from "./agentReputation";
  */
 export async function getAgentTrustSummary(agentNonce: number): Promise<ToolResult> {
     try {
-        // Fetch real data from Reputation Registry
         const repResult = await getAgentReputation(agentNonce);
-        const repData = JSON.parse(repResult.content[0].text);
+        const repText = repResult.content[0].text;
+
+        // Defensive: check if reputation returned an error before parsing
+        if (repResult.isError || repText.startsWith("Error")) {
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        agent_id: agentNonce,
+                        reputation_score: "0",
+                        total_completed_jobs: "0",
+                        status: "unknown",
+                        verifications: [
+                            { registry: "Identity", status: "verified" },
+                            { registry: "Reputation", status: "unavailable" }
+                        ],
+                        error: repText,
+                        last_sync: new Date().toISOString()
+                    }, null, 2)
+                }]
+            };
+        }
+
+        const repData = JSON.parse(repText);
 
         const summary = {
             agent_id: agentNonce,
             reputation_score: repData.reputation_score,
             total_completed_jobs: repData.total_completed_jobs,
-            status: repData.reputation_score > 80 ? "highly_trusted" : "active",
+            status: Number(repData.reputation_score) > 80 ? "highly_trusted" : "active",
             verifications: [
                 { registry: "Identity", status: "verified" },
                 { registry: "Reputation", status: "active" }

@@ -152,7 +152,7 @@ export function createMcpServer() {
         tools.submitAgentFeedbackToolName,
         tools.submitAgentFeedbackToolDescription,
         tools.submitAgentFeedbackParamScheme,
-        async ({ agentNonce, rating }) => asToolResult(tools.submitAgentFeedback(agentNonce, rating))
+        async ({ agentNonce, rating, jobId }) => asToolResult(tools.submitAgentFeedback(agentNonce, rating, jobId))
     );
 
     server.tool(
@@ -173,7 +173,7 @@ export function createMcpServer() {
         tools.verifyJobToolName,
         tools.verifyJobToolDescription,
         tools.verifyJobParamScheme,
-        async ({ jobId, status }) => asToolResult(tools.verifyJob(jobId, status))
+        async ({ jobId }) => asToolResult(tools.verifyJob(jobId))
     );
 
     server.tool(
