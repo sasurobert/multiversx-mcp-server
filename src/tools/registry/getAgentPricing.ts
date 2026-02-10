@@ -22,7 +22,7 @@ export async function getAgentPricing(agentNonce: number, serviceId: string): Pr
             arguments: [agentNonce, Buffer.from(serviceId)],
         });
 
-        if (!configResults || configResults.length === 0) {
+        if (!configResults || configResults.length === 0 || !configResults[0]) {
             return {
                 content: [{ type: "text", text: `Pricing configuration not found for Agent #${agentNonce} service: ${serviceId}` }]
             };
@@ -43,8 +43,8 @@ export async function getAgentPricing(agentNonce: number, serviceId: string): Pr
                     agent_id: agentNonce,
                     service_id: serviceId,
                     price: serviceConfig.price.toString(),
-                    token: serviceConfig.token.identifier.toString(),
-                    pnonce: Number(serviceConfig.pnonce),
+                    token: serviceConfig.token?.identifier?.toString() ?? 'EGLD',
+                    pnonce: Number(serviceConfig.pnonce ?? 0),
                 }, null, 2)
             }]
         };
