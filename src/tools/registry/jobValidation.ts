@@ -77,9 +77,15 @@ export async function submitJobProof(jobId: string, proofHash: string, sender?: 
 }
 
 /**
- * Build a transaction to verify a job (Oracle/Validator only).
+ * Build a transaction to request validation for a job (Agent Owner only).
  */
-export async function verifyJob(jobId: string, sender?: string): Promise<ToolResult> {
+export async function validationRequest(
+    jobId: string,
+    validatorAddress: string,
+    requestUri: string,
+    requestHash: string,
+    sender?: string
+): Promise<ToolResult> {
     const config = loadNetworkConfig();
     const entrypoint = createEntrypoint(config);
     const abi = createPatchedAbi(validationAbiJson);
@@ -92,11 +98,14 @@ export async function verifyJob(jobId: string, sender?: string): Promise<ToolRes
             senderAddress,
             {
                 contract: Address.newFromBech32(REGISTRY_ADDRESSES.VALIDATION),
-                function: "verify_job",
+                function: "validation_request",
                 arguments: [
                     Buffer.from(jobId),
+                    Address.newFromBech32(validatorAddress),
+                    Buffer.from(requestUri),
+                    Buffer.from(requestHash),
                 ],
-                gasLimit: 10_000_000n
+                gasLimit: 15_000_000n
             }
         );
 
@@ -106,7 +115,54 @@ export async function verifyJob(jobId: string, sender?: string): Promise<ToolRes
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         return {
-            content: [{ type: "text", text: `Error creating verify transaction: ${message}` }],
+            content: [{ type: "text", text: `Error creating validation request transaction: ${message}` }],
+            isError: true
+        };
+    }
+}
+
+/**
+ * Build a transaction to respond to a validation request (Validator only).
+ */
+export async function validationResponse(
+    requestHash: string,
+    response: number,
+    responseUri: string,
+    responseHash: string,
+    tag: string,
+    sender?: string
+): Promise<ToolResult> {
+    const config = loadNetworkConfig();
+    const entrypoint = createEntrypoint(config);
+    const abi = createPatchedAbi(validationAbiJson);
+    const factory = entrypoint.createSmartContractTransactionsFactory(abi);
+
+    try {
+        const senderAddress = sender ? Address.newFromBech32(sender) : new Address(Buffer.alloc(32));
+
+        const tx = await factory.createTransactionForExecute(
+            senderAddress,
+            {
+                contract: Address.newFromBech32(REGISTRY_ADDRESSES.VALIDATION),
+                function: "validation_response",
+                arguments: [
+                    Buffer.from(requestHash),
+                    response,
+                    Buffer.from(responseUri),
+                    Buffer.from(responseHash),
+                    Buffer.from(tag),
+                ],
+                gasLimit: 15_000_000n
+            }
+        );
+
+        return {
+            content: [{ type: "text", text: JSON.stringify(tx.toPlainObject(), null, 2) }]
+        };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        return {
+            content: [{ type: "text", text: `Error creating validation response transaction: ${message}` }],
             isError: true
         };
     }
@@ -126,9 +182,24 @@ export const submitJobProofParamScheme = {
     sender: z.string().optional().describe("The address of the Agent submitting the proof"),
 };
 
-export const verifyJobToolName = "verify-job";
-export const verifyJobToolDescription = "Create an unsigned transaction to finalize job verification (Oracle only)";
-export const verifyJobParamScheme = {
-    jobId: z.string().describe("The Job ID to verify"),
-    sender: z.string().optional().describe("The address of the Oracle/Validator"),
+export const validationRequestToolName = "validation-request";
+export const validationRequestToolDescription = "Create an unsigned transaction to request validation from a validator (Agent Owner only, ERC-8004)";
+export const validationRequestParamScheme = {
+    jobId: z.string().describe("The Job ID to validate"),
+    validatorAddress: z.string().describe("Bech32 address of the validator"),
+    requestUri: z.string().describe("URI for the validation request details"),
+    requestHash: z.string().describe("Hash of the validation request"),
+    sender: z.string().optional().describe("The address of the Agent Owner"),
 };
+
+export const validationResponseToolName = "validation-response";
+export const validationResponseToolDescription = "Create an unsigned transaction to respond to a validation request (Validator only, ERC-8004)";
+export const validationResponseParamScheme = {
+    requestHash: z.string().describe("Hash of the validation request to respond to"),
+    response: z.number().min(0).max(100).describe("Validation score (0-100)"),
+    responseUri: z.string().describe("URI for the validation response details"),
+    responseHash: z.string().describe("Hash of the validation response"),
+    tag: z.string().describe("Tag for the validation response"),
+    sender: z.string().optional().describe("The address of the Validator"),
+};
+

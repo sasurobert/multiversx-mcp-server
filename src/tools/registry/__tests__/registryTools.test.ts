@@ -1,7 +1,7 @@
 import { getAgentManifest } from "../getAgentManifest";
 import { getAgentTrustSummary } from "../getAgentTrustSummary";
 import { getAgentReputation, submitAgentFeedback } from "../agentReputation";
-import { isJobVerified, submitJobProof, verifyJob } from "../jobValidation";
+import { isJobVerified, submitJobProof, validationRequest } from "../jobValidation";
 import { createNetworkProvider } from "../../networkConfig";
 import { Address } from "@multiversx/sdk-core";
 
@@ -175,9 +175,10 @@ describe("Registry Tools", () => {
             expect(tx.sender).toBe(customSender);
         });
 
-        it("should create verify transaction (without status arg)", async () => {
+        it("should create validation request transaction", async () => {
             const customSender = "erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv";
-            const result = await verifyJob("job-1", customSender);
+            const validator = "erd1spyavw0956vq68xj8y4tenjpq2wd5a9p2c6j8gsz7ztyrnpxrruqzu66jx";
+            const result = await validationRequest("job-1", validator, "https://req.uri", "req_hash", customSender);
             const tx = JSON.parse(result.content[0].text);
             expect(tx.sender).toBe(customSender);
         });

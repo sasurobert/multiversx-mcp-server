@@ -170,10 +170,19 @@ export function createMcpServer() {
     );
 
     server.tool(
-        tools.verifyJobToolName,
-        tools.verifyJobToolDescription,
-        tools.verifyJobParamScheme,
-        async ({ jobId }) => asToolResult(tools.verifyJob(jobId))
+        tools.validationRequestToolName,
+        tools.validationRequestToolDescription,
+        tools.validationRequestParamScheme,
+        async ({ jobId, validatorAddress, requestUri, requestHash, sender }) =>
+            asToolResult(tools.validationRequest(jobId, validatorAddress, requestUri, requestHash, sender))
+    );
+
+    server.tool(
+        tools.validationResponseToolName,
+        tools.validationResponseToolDescription,
+        tools.validationResponseParamScheme,
+        async ({ requestHash, response, responseUri, responseHash, tag, sender }) =>
+            asToolResult(tools.validationResponse(requestHash, response, responseUri, responseHash, tag, sender))
     );
 
     server.tool(
