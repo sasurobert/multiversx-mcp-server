@@ -57,6 +57,7 @@ export async function issueFungible(
         // Set nonce and apply value for issuance cost
         tx.nonce = account.nonce;
         tx.value = ESDT_ISSUE_COST;
+        tx.gasLimit = BigInt(60000000); // DEFAULT_GAS_LIMIT_ISSUE from constants is 60M
 
         // Sign the transaction
         const bytesToSign = txComputer.computeBytesForSigning(tx);

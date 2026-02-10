@@ -43,11 +43,16 @@ const NETWORK_CONFIGS: Record<NetworkName, NetworkConfig> = {
 export function loadNetworkConfig(): NetworkConfig {
     const network = (process.env.MVX_NETWORK || "mainnet") as NetworkName;
     const customApiUrl = process.env.MVX_API_URL;
+    const customChainId = process.env.MVX_CHAIN_ID;
 
     const config = NETWORK_CONFIGS[network] || NETWORK_CONFIGS.mainnet;
 
-    if (customApiUrl) {
-        return { ...config, apiUrl: customApiUrl };
+    if (customApiUrl || customChainId) {
+        return {
+            ...config,
+            apiUrl: customApiUrl || config.apiUrl,
+            chainId: customChainId || config.chainId
+        };
     }
 
     return config;
