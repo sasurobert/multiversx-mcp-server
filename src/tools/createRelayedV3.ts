@@ -3,6 +3,7 @@ import { Transaction, TransactionComputer, Address, UserVerifier, Logger } from 
 import { ToolResult } from "./types";
 import { loadNetworkConfig, createNetworkProvider } from "./networkConfig";
 import { loadWalletConfig, loadWalletFromPem, loadWalletsFromDir, LoadedWallet } from "./walletConfig";
+import { parseSimulationResult } from "../utils/simulationParser";
 
 const txComputer = new TransactionComputer();
 
@@ -97,24 +98,18 @@ export async function createRelayedV3(
         tx.relayerSignature = signature;
 
         // 3. Simulation BEFORE broadcast
-        const simulationResult = await api.simulateTransaction(tx) as unknown as ISimulationResult;
+        const simulationResult = await api.simulateTransaction(tx) as unknown as Record<string, any>;
         Logger.info({
             simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
         }, "Relayer: Simulation result received");
 
-        // Robust Parser: Handle both flattened (API) and nested (Proxy/Gateway) structures
-        const statusFromStatus = simulationResult?.status?.status;
-        const statusFromRaw = simulationResult?.raw?.status;
-        const execution = simulationResult?.execution || simulationResult?.result?.execution;
-        const resultStatus = statusFromStatus || statusFromRaw || execution?.result;
-
-        if (resultStatus !== 'success') {
-            const message = (execution as any)?.message || simulationResult?.error || 'Unknown error';
+        const { success, errorMessage } = parseSimulationResult(simulationResult);
+        if (!success) {
             Logger.error({
-                error: message,
+                error: errorMessage,
                 simulationResult: JSON.stringify(simulationResult, (_, v) => typeof v === 'bigint' ? v.toString() : v)
             }, "Relayer: Simulation failed before broadcast");
-            throw new Error(`On-chain simulation failed: ${message}`);
+            throw new Error(`On-chain simulation failed: ${errorMessage}`);
         }
 
         // 4. Send the transaction
