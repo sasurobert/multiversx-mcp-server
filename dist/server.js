@@ -69,7 +69,8 @@ function createMcpServer() {
     server.tool(tools.submitAgentFeedbackToolName, tools.submitAgentFeedbackToolDescription, tools.submitAgentFeedbackParamScheme, async ({ agentNonce, rating, jobId }) => asToolResult(tools.submitAgentFeedback(agentNonce, rating, jobId)));
     server.tool(tools.isJobVerifiedToolName, tools.isJobVerifiedToolDescription, tools.isJobVerifiedParamScheme, async ({ jobId }) => asToolResult(tools.isJobVerified(jobId)));
     server.tool(tools.submitJobProofToolName, tools.submitJobProofToolDescription, tools.submitJobProofParamScheme, async ({ jobId, proofHash }) => asToolResult(tools.submitJobProof(jobId, proofHash)));
-    server.tool(tools.verifyJobToolName, tools.verifyJobToolDescription, tools.verifyJobParamScheme, async ({ jobId }) => asToolResult(tools.verifyJob(jobId)));
+    server.tool(tools.validationRequestToolName, tools.validationRequestToolDescription, tools.validationRequestParamScheme, async ({ jobId, validatorAddress, requestUri, requestHash, sender }) => asToolResult(tools.validationRequest(jobId, validatorAddress, requestUri, requestHash, sender)));
+    server.tool(tools.validationResponseToolName, tools.validationResponseToolDescription, tools.validationResponseParamScheme, async ({ requestHash, response, responseUri, responseHash, tag, sender }) => asToolResult(tools.validationResponse(requestHash, response, responseUri, responseHash, tag, sender)));
     server.tool(tools.createPurchaseTransactionToolName, tools.createPurchaseTransactionToolDescription, tools.createPurchaseTransactionParamScheme, async ({ tokenIdentifier, nonce, quantity, receiver, price }) => asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price })));
     return server;
 }

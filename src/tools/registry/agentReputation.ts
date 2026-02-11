@@ -56,7 +56,7 @@ export async function getAgentReputation(agentNonce: number): Promise<ToolResult
 
 /**
  * Build a transaction to submit feedback for an agent.
- * ABI signature: submit_feedback(job_id: bytes, agent_nonce: u64, rating: BigUint)
+ * ABI signature: giveFeedbackSimple(job_id: bytes, agent_nonce: u64, rating: BigUint)
  */
 export async function submitAgentFeedback(
     agentNonce: number,
@@ -76,7 +76,7 @@ export async function submitAgentFeedback(
             senderAddress,
             {
                 contract: Address.newFromBech32(REGISTRY_ADDRESSES.REPUTATION),
-                function: "submit_feedback",
+                function: "giveFeedbackSimple",
                 arguments: [
                     Buffer.from(jobId),
                     BigInt(agentNonce),
