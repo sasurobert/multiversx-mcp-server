@@ -1,69 +1,73 @@
 import { z } from "zod";
-import axios from "axios";
 import { ToolResult } from "../types";
-import { loadNetworkConfig } from "../networkConfig";
+import {
+    createRegistryControllers,
+    fetchAgentCollectionId,
+    fetchAgentNfts,
+    fetchReputationScores,
+    type AgentNftItem,
+} from "./registryHelpers";
 
-/**
- * Searches for agents based on a query string.
- * It searches through Agent NFTs on the MultiversX network.
- */
-interface NftItem {
-    identifier: string;
-    name: string;
-    nonce: number;
+interface SearchNftItem extends AgentNftItem {
     owner: string;
-    url: string;
     collection: string;
     timestamp: number;
 }
 
+/**
+ * Searches for agents based on a query string.
+ * Fetches agent NFTs from the Identity Registry collection and reputation from the Reputation Registry.
+ */
 export async function searchAgents(
     query: string,
     minTrust?: number,
     limit: number = 5
 ): Promise<ToolResult> {
-    const config = loadNetworkConfig();
+    const { identityController, reputationController, identityAddress, reputationAddress, config } = createRegistryControllers();
 
     try {
-        const params: Record<string, string | number> = {
-            search: query,
-            size: limit,
-            type: "NonFungibleESDT",
-        };
-
-        const url = `${config.apiUrl}/nfts`;
-        const response = await axios.get(url, { params });
-        const items = response.data as NftItem[];
-
-        // In a production environment, we would also filter by the specific Agent token collection.
-        // For now, we return matching NFTs which can represent agents.
-        let agents = items.map((item: NftItem) => ({
-            id: item.identifier,
-            name: item.name,
-            nonce: item.nonce,
-            owner: item.owner,
-            uri: item.url,
-            collection: item.collection,
-            timestamp: item.timestamp,
-            // Mock reputation for search results (ideally fetched from Reputation Registry)
-            reputation_score: 85.0
-        }));
-
-        // Apply minTrust filter if provided
-        if (minTrust !== undefined) {
-            agents = agents.filter(a => a.reputation_score >= minTrust);
+        const collectionId = await fetchAgentCollectionId(identityController, identityAddress);
+        if (!collectionId) {
+            return {
+                content: [{ type: "text", text: "Could not fetch agent token ID from Identity Registry." }]
+            };
         }
 
-        if (agents.length === 0) {
+        const items = await fetchAgentNfts<SearchNftItem>(config.apiUrl, collectionId, {
+            search: query,
+            size: Math.min(limit * 3, 30),
+        });
+        const scoreMap = await fetchReputationScores(items, reputationController, reputationAddress);
+
+        const agents = [];
+        for (const item of items) {
+            const reputation_score = scoreMap.get(item.nonce) ?? 0;
+            if (minTrust !== undefined && reputation_score < minTrust) {
+                continue;
+            }
+            agents.push({
+                id: item.identifier,
+                name: item.name,
+                nonce: item.nonce,
+                owner: item.owner,
+                uri: item.url ?? "",
+                collection: item.collection ?? "",
+                timestamp: item.timestamp ?? 0,
+                reputation_score,
+            });
+        }
+
+        const result = agents.slice(0, limit);
+
+        if (result.length === 0) {
             return {
                 content: [{ type: "text", text: `No agents found matching query: "${query}"` }]
             };
         }
 
         return {
-            content: [{ type: "text", text: JSON.stringify(agents, null, 2) }]
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
         };
-
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         return {
