@@ -1,22 +1,33 @@
 import { searchAgents } from "../searchAgents";
 import { getTopRatedAgents } from "../getTopRatedAgents";
-import { createNetworkProvider } from "../../networkConfig";
 import axios from "axios";
 
 jest.mock("axios");
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
+const mockIdentityQuery = jest.fn();
+const mockReputationQuery = jest.fn();
+
 jest.mock("../../networkConfig", () => ({
     loadNetworkConfig: jest.fn().mockReturnValue({ apiUrl: "https://api.testnet.multiversx.com", chainId: "T" }),
-    createNetworkProvider: jest.fn().mockReturnValue({
-        doGetGeneric: jest.fn(),
-    })
+    createEntrypoint: jest.fn().mockReturnValue({
+        createSmartContractController: jest.fn().mockImplementation((abi: unknown) => ({
+            query: jest.fn().mockImplementation((opts: { function: string }) => {
+                if (opts.function === "get_agent_token_id") return mockIdentityQuery();
+                if (opts.function === "get_reputation_score") return mockReputationQuery();
+                return Promise.resolve([]);
+            }),
+        })),
+    }),
 }));
 
 describe("Discovery Tools", () => {
-    const mockApi = createNetworkProvider({} as any);
-
     describe("search-agents", () => {
+        beforeEach(() => {
+            mockIdentityQuery.mockReset();
+            mockReputationQuery.mockReset();
+        });
+
         it("should return agents matching the query", async () => {
             const mockNfts = [
                 {
@@ -29,6 +40,8 @@ describe("Discovery Tools", () => {
                     timestamp: 123456
                 }
             ];
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
+            mockReputationQuery.mockResolvedValue([{ valueOf: () => 95n }]);
             mockedAxios.get.mockResolvedValue({ data: mockNfts });
 
             const result = await searchAgents("DeFi");
@@ -36,10 +49,12 @@ describe("Discovery Tools", () => {
 
             expect(agents).toHaveLength(1);
             expect(agents[0].name).toBe("DeFi Bot");
+            expect(agents[0].reputation_score).toBe(95);
             expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining("/nfts"), expect.any(Object));
         });
 
         it("should return no agents found message if no matches", async () => {
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
             mockedAxios.get.mockResolvedValue({ data: [] });
             const result = await searchAgents("NonExistent");
             expect(result.content[0].text).toContain('No agents found matching query');
@@ -47,17 +62,21 @@ describe("Discovery Tools", () => {
 
         it("should filter by minTrust", async () => {
             const mockNfts = [
-                { identifier: "A1", name: "High Trust", nonce: 1 },
-                { identifier: "A2", name: "Low Trust", nonce: 2 }
+                { identifier: "A1", name: "High Trust", nonce: 1, owner: "erd1...", url: "", collection: "ACT", timestamp: 0 },
+                { identifier: "A2", name: "Low Trust", nonce: 2, owner: "erd1...", url: "", collection: "ACT", timestamp: 0 }
             ];
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
+            mockReputationQuery
+                .mockResolvedValueOnce([{ valueOf: () => 85n }])
+                .mockResolvedValueOnce([{ valueOf: () => 80n }]);
             mockedAxios.get.mockResolvedValue({ data: mockNfts });
 
-            // Note: Our current searchAgents mocks reputation at 85.0
             const result = await searchAgents("query", 90);
             expect(result.content[0].text).toContain('No agents found');
         });
 
         it("should handle API errors", async () => {
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
             mockedAxios.get.mockRejectedValue(new Error("API Down"));
             const result = await searchAgents("test");
             expect(result.content[0].text).toContain("Error searching for agents: API Down");
@@ -65,21 +84,21 @@ describe("Discovery Tools", () => {
     });
 
     describe("get-top-rated-agents", () => {
+        beforeEach(() => {
+            mockIdentityQuery.mockReset();
+            mockReputationQuery.mockReset();
+        });
+
         it("should return sorted agents by reputation", async () => {
             const mockNfts = [
                 { identifier: "A1", name: "Agent 1", nonce: 1, url: "u1" },
                 { identifier: "A2", name: "Agent 2", nonce: 2, url: "u2" }
             ];
-            (mockApi.doGetGeneric as jest.Mock).mockImplementation((url: string) => {
-                if (url.includes("nfts")) return Promise.resolve(mockNfts);
-                if (url.includes("vm-values/reputationScore?args=1")) {
-                    return Promise.resolve({ data: { data: { returnData: [Buffer.from([0x23, 0x28]).toString("base64")] } } }); // 9000
-                }
-                if (url.includes("vm-values/reputationScore?args=2")) {
-                    return Promise.resolve({ data: { data: { returnData: [Buffer.from([0x27, 0x10]).toString("base64")] } } }); // 10000
-                }
-                return Promise.resolve(null);
-            });
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
+            mockReputationQuery
+                .mockResolvedValueOnce([{ valueOf: () => 9000n }])
+                .mockResolvedValueOnce([{ valueOf: () => 10000n }]);
+            mockedAxios.get.mockResolvedValue({ data: mockNfts });
 
             const result = await getTopRatedAgents("all", 2);
             const top = JSON.parse(result.content[0].text);
@@ -90,24 +109,28 @@ describe("Discovery Tools", () => {
         });
 
         it("should handle empty results", async () => {
-            (mockApi.doGetGeneric as jest.Mock).mockResolvedValue([]);
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
+            mockedAxios.get.mockResolvedValue({ data: [] });
+
             const result = await getTopRatedAgents("all");
             expect(result.content[0].text).toBe("[]");
         });
 
         it("should handle error in reputation fetch for some agents", async () => {
             const mockNfts = [{ identifier: "A1", name: "Agent 1", nonce: 1, url: "u1" }];
-            (mockApi.doGetGeneric as jest.Mock).mockImplementation((url: string) => {
-                if (url.includes("nfts")) return Promise.resolve(mockNfts);
-                throw new Error("VM Error");
-            });
+            mockIdentityQuery.mockResolvedValue(["ACT-e4c050"]);
+            mockedAxios.get.mockResolvedValue({ data: mockNfts });
+            mockReputationQuery.mockRejectedValue(new Error("VM Error"));
 
             const result = await getTopRatedAgents("all");
-            expect(result.content[0].text).toBe("[]");
+            const top = JSON.parse(result.content[0].text);
+            expect(top).toHaveLength(1);
+            expect(top[0].reputation_score).toBe(0); // Failed fetch returns 0
         });
 
         it("should handle global API failure", async () => {
-            (mockApi.doGetGeneric as jest.Mock).mockRejectedValue(new Error("Network Error"));
+            mockIdentityQuery.mockRejectedValue(new Error("Network Error"));
+
             const result = await getTopRatedAgents("all");
             expect(result.content[0].text).toContain("Error fetching top rated agents: Network Error");
         });

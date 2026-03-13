@@ -3,9 +3,16 @@ import { ToolResult } from "../types";
 import { loadNetworkConfig } from "../networkConfig";
 import { Transaction, Address } from "@multiversx/sdk-core";
 
+const BECH32_PREFIX = "erd1";
+const ZERO_ADDRESS = "erd1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6gq4hu";
+
+function isValidBech32(address: string): boolean {
+    return typeof address === "string" && address.startsWith(BECH32_PREFIX) && address.length >= 59 && address.length <= 62;
+}
+
 /**
  * Creates an unsigned transaction for purchasing a product (NFT/SFT).
- * returns a standardized JSON object for interactive signing.
+ * Returns a standardized JSON object for interactive signing.
  */
 export async function createPurchaseTransaction(params: {
     tokenIdentifier: string;
@@ -13,39 +20,56 @@ export async function createPurchaseTransaction(params: {
     quantity: number;
     receiver: string;
     price: string;
+    sender?: string;
 }): Promise<ToolResult> {
-    const config = loadNetworkConfig();
-
     try {
-        // Construct the purchase transaction.
-        // For MultiversX marketplaces, this is typically an ESDTNFTTransfer call.
-        // Data format: ESDTNFTTransfer@TokenID_HEX@Nonce_HEX@Quantity_HEX@Receiver_ADDR_HEX@Function_HEX@Args_HEX
+        if (!params.tokenIdentifier?.trim()) {
+            return { content: [{ type: "text", text: "Error: tokenIdentifier is required and cannot be empty." }] };
+        }
+        if (params.nonce < 0 || !Number.isInteger(params.nonce)) {
+            return { content: [{ type: "text", text: "Error: nonce must be a non-negative integer." }] };
+        }
+        if (params.quantity < 1 || !Number.isInteger(params.quantity)) {
+            return { content: [{ type: "text", text: "Error: quantity must be a positive integer." }] };
+        }
+        if (!isValidBech32(params.receiver)) {
+            return { content: [{ type: "text", text: "Error: receiver must be a valid bech32 address (erd1...)." }] };
+        }
+        if (params.sender !== undefined && !isValidBech32(params.sender)) {
+            return { content: [{ type: "text", text: "Error: sender must be a valid bech32 address (erd1...)." }] };
+        }
+        const priceBigInt = BigInt(params.price);
+        if (priceBigInt < 0n) {
+            return { content: [{ type: "text", text: "Error: price must be a non-negative integer string." }] };
+        }
 
-        const tokenIdentifierHex = Buffer.from(params.tokenIdentifier).toString("hex");
+        const config = loadNetworkConfig();
+
+        const tokenIdentifierHex = Buffer.from(params.tokenIdentifier, "utf-8").toString("hex");
         const nonceHex = params.nonce.toString(16).padStart(2, "0");
+        const quantityHex = params.quantity.toString(16).padStart(2, "0");
+        const data = `buy@${tokenIdentifierHex}@${nonceHex}@${quantityHex}`;
 
-        const data = `buy@${tokenIdentifierHex}@${nonceHex}`;
+        const senderAddress = params.sender
+            ? Address.newFromBech32(params.sender)
+            : Address.newFromBech32(ZERO_ADDRESS);
 
         const tx = new Transaction({
             nonce: 0n,
-            value: BigInt(params.price),
+            value: priceBigInt,
             receiver: Address.newFromBech32(params.receiver),
-            sender: Address.newFromBech32("erd1qyu5wgts7fp92az5y2yuqlsq0zy7gu3g5pcsq7yfu3ez3gr3qpuq00xjqv"), // Valid placeholder
+            sender: senderAddress,
             gasLimit: 10_000_000n,
             chainID: config.chainId,
-            data: Buffer.from(data),
+            data: Buffer.from(data, "utf-8"),
             version: 1,
         });
 
-        // Convert to a format that signing providers expect (Plain object)
         const txJson = tx.toPlainObject();
-
         return {
             content: [{ type: "text", text: JSON.stringify(txJson, null, 2) }]
         };
-
     } catch (error) {
-        console.error("Error in createPurchaseTransaction:", error);
         const message = error instanceof Error ? error.message : "Unknown error";
         return {
             content: [{ type: "text", text: `Error creating purchase transaction: ${message}` }]
@@ -60,5 +84,6 @@ export const createPurchaseTransactionParamScheme = {
     nonce: z.number().describe("The NFT/SFT nonce"),
     quantity: z.number().describe("Quantity to purchase"),
     receiver: z.string().describe("The marketplace or contract address"),
-    price: z.string().describe("The price in atomic units (e.g. 1000000000000000000 for 1 EGLD)")
+    price: z.string().describe("The price in atomic units (e.g. 1000000000000000000 for 1 EGLD)"),
+    sender: z.string().optional().describe("The buyer's bech32 address. When omitted, zero address is used (must be set before signing)"),
 };

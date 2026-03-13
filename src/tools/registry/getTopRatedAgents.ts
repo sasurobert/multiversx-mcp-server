@@ -1,60 +1,42 @@
 import { z } from "zod";
 import { ToolResult } from "../types";
-import { loadNetworkConfig, createNetworkProvider } from "../networkConfig";
-import { REGISTRY_ADDRESSES } from "../../utils/registryConfig";
-
-interface NftItem {
-    identifier: string;
-    name: string;
-    nonce: number;
-    url: string;
-}
+import {
+    createRegistryControllers,
+    fetchAgentCollectionId,
+    fetchAgentNfts,
+    fetchReputationScores,
+    type AgentNftItem,
+} from "./registryHelpers";
 
 /**
  * Returns a list of agents with the highest reputation scores.
+ * Fetches agent NFTs from the Identity Registry collection and queries reputation from the Reputation Registry.
  */
 export async function getTopRatedAgents(
-    category: string,
+    _category: string,
     limit: number = 5
 ): Promise<ToolResult> {
-    const config = loadNetworkConfig();
-    const api = createNetworkProvider(config);
+    const { identityController, reputationController, identityAddress, reputationAddress, config } = createRegistryControllers();
 
     try {
-        // In a real production scenario with many agents, this would use an indexer.
-        // For now, we fetch a few and query their reputation.
-        // Fetch recent agent NFTs to find active agents
-        const items: NftItem[] = await api.doGetGeneric(
-            `nfts?size=20&type=NonFungibleESDT`
-        );
-
-        const agentRatings = [];
-
-        for (const item of items) {
-            try {
-                const nonce = item.nonce;
-                const scoreResponse = await api.doGetGeneric(`accounts/${REGISTRY_ADDRESSES.REPUTATION}/vm-values/reputationScore?args=${nonce}`);
-
-                let score = 0;
-                if (scoreResponse?.data?.data?.returnData?.[0]) {
-                    // BigUint decoding (approximate to number for sorting)
-                    const hex = Buffer.from(scoreResponse.data.data.returnData[0], "base64").toString("hex");
-                    score = parseInt(hex, 16) || 0;
-                }
-
-                agentRatings.push({
-                    id: item.identifier,
-                    name: item.name,
-                    nonce: nonce,
-                    reputation_score: score,
-                    uri: item.url
-                });
-            } catch {
-                // Skip if reputation fetch fails
-            }
+        const collectionId = await fetchAgentCollectionId(identityController, identityAddress);
+        if (!collectionId) {
+            return {
+                content: [{ type: "text", text: "Could not fetch agent token ID from Identity Registry." }]
+            };
         }
 
-        // Sort by score descending
+        const items = await fetchAgentNfts<AgentNftItem>(config.apiUrl, collectionId, { size: 50 });
+        const scoreMap = await fetchReputationScores(items, reputationController, reputationAddress);
+
+        const agentRatings = items.map((item) => ({
+            id: item.identifier,
+            name: item.name,
+            nonce: item.nonce,
+            reputation_score: scoreMap.get(item.nonce) ?? 0,
+            uri: item.url ?? "",
+        }));
+
         const topAgents = agentRatings
             .sort((a, b) => b.reputation_score - a.reputation_score)
             .slice(0, limit);
@@ -62,7 +44,6 @@ export async function getTopRatedAgents(
         return {
             content: [{ type: "text", text: JSON.stringify(topAgents, null, 2) }]
         };
-
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         return {
@@ -74,6 +55,6 @@ export async function getTopRatedAgents(
 export const getTopRatedAgentsToolName = "get-top-rated-agents";
 export const getTopRatedAgentsToolDescription = "Get the highest rated agents from the registry";
 export const getTopRatedAgentsParamScheme = {
-    category: z.string().describe("Agent category (e.g. 'shopping', 'finance') or 'all'"),
+    category: z.string().optional().default("all").describe("Agent category (reserved for future use)"),
     limit: z.number().optional().default(5).describe("Maximum number of agents to return"),
 };

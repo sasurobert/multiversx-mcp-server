@@ -189,8 +189,8 @@ export function createMcpServer() {
         tools.createPurchaseTransactionToolName,
         tools.createPurchaseTransactionToolDescription,
         tools.createPurchaseTransactionParamScheme,
-        async ({ tokenIdentifier, nonce, quantity, receiver, price }) =>
-            asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price }))
+        async ({ tokenIdentifier, nonce, quantity, receiver, price, sender }) =>
+            asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price, sender }))
     );
 
     return server;
