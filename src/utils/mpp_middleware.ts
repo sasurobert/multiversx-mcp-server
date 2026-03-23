@@ -22,7 +22,7 @@ export function createMppMiddleware(
   options: McpPaymentMiddlewareOptions
 ) {
   const provider = new ApiNetworkProvider(options.networkProviderUrl);
-  let mppxInstance: any = null;
+  let mppxInstance: unknown = null;
 
   return async (request: CallToolRequest, next: (req: CallToolRequest) => Promise<any>) => {
     const toolName = request.params.name;
@@ -54,7 +54,7 @@ export function createMppMiddleware(
     const _mpp_payment_proof = request.params.arguments?.["_mpp_payment_proof"] as string | undefined;
 
     if (!_mpp_payment_proof) {
-      const handler = mppxInstance.charge({
+      const handler = (mppxInstance as any).charge({
         recipient: price.recipient || options.paymentReceiverAddress,
         amount: price.amount,
         currency: price.currency,
@@ -84,8 +84,8 @@ export function createMppMiddleware(
       }
       return next(request);
 
-    } catch (e: any) {
-      throw new McpError(ErrorCode.InvalidParams, `Invalid Payment Proof: ${e.message}`);
+    } catch (e: unknown) {
+      throw new McpError(ErrorCode.InvalidParams, `Invalid Payment Proof: ${(e as Error).message}`);
     }
   };
 }

@@ -1,4 +1,6 @@
 import request from "supertest";
+import { FastifyInstance } from "fastify";
+import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
 import { createHttpServer } from "../http";
 import { searchProducts } from "../tools/searchProducts";
 
@@ -9,7 +11,7 @@ jest.mock("../utils/whitelistRegistry", () => ({
 }));
 
 describe("HTTP Server", () => {
-    let fastify: any;
+    let fastify: FastifyInstance;
 
     beforeAll(async () => {
         fastify = createHttpServer();

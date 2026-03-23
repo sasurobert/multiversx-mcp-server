@@ -196,7 +196,6 @@ export function createMcpServer() {
 
     // Wire the MPP Middleware to intercept premium endpoints
     const underlyingServer = server.server;
-    const originalHandler = (underlyingServer as any)._requestHandlers.get("tools/call");
 
     const PRICED_TOOLS: Record<string, McpToolPrice> = {
         "sendEgld": { amount: "0.001", currency: "EGLD" }, // Default 0.001 EGLD fee for using this tool via agent
@@ -208,9 +207,12 @@ export function createMcpServer() {
         paymentReceiverAddress: process.env.FEE_RECEIVER_ADDRESS || "erd1qqqqqqqqqqqqqpgq...fee_address...qqqqqqqqqqqqq" 
     });
 
-    (underlyingServer as any)._requestHandlers.set("tools/call", async (request: any, extra: any) => {
+    // @ts-ignore - Patching internal MCP handler
+    const originalHandler = underlyingServer._requestHandlers.get("tools/call");
+    // @ts-ignore
+    underlyingServer._requestHandlers.set("tools/call", async (request: CallToolRequest, extra: unknown) => {
         return mpp(request, async (req) => {
-            return originalHandler(req, extra);
+            return originalHandler ? originalHandler(req, extra) : null;
         });
     });
 
