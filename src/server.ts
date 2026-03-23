@@ -1,7 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import * as tools from "./tools/index";
 import { ToolResult } from "./tools/types";
-
+import { createMppMiddleware, McpToolPrice } from "./utils/mpp_middleware";
 // Helper to cast tool results to avoid strict TZ index signature issues with the MCP SDK.
 // The SDK expects a specific result structure that includes 'content'.
 const asToolResult = (p: Promise<ToolResult>) => p as Promise<any>;
@@ -192,6 +193,26 @@ export function createMcpServer() {
         async ({ tokenIdentifier, nonce, quantity, receiver, price, sender }) =>
             asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price, sender }))
     );
+
+    // Wire the MPP Middleware to intercept premium endpoints
+    const underlyingServer = server.server;
+    const originalHandler = (underlyingServer as any)._requestHandlers.get("tools/call");
+
+    const PRICED_TOOLS: Record<string, McpToolPrice> = {
+        "sendEgld": { amount: "0.001", currency: "EGLD" }, // Default 0.001 EGLD fee for using this tool via agent
+        "sendTokens": { amount: "0.001", currency: "EGLD" }
+    };
+
+    const mpp = createMppMiddleware(underlyingServer, PRICED_TOOLS, {
+        networkProviderUrl: process.env.NETWORK_URL || "https://devnet-api.multiversx.com",
+        paymentReceiverAddress: process.env.FEE_RECEIVER_ADDRESS || "erd1qqqqqqqqqqqqqpgq...fee_address...qqqqqqqqqqqqq" 
+    });
+
+    (underlyingServer as any)._requestHandlers.set("tools/call", async (request: any, extra: any) => {
+        return mpp(request, async (req) => {
+            return originalHandler(req, extra);
+        });
+    });
 
     return server;
 }

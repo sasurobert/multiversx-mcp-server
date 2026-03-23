@@ -37,6 +37,7 @@ exports.MCP_SERVER_NAME = void 0;
 exports.createMcpServer = createMcpServer;
 const mcp_js_1 = require("@modelcontextprotocol/sdk/server/mcp.js");
 const tools = __importStar(require("./tools/index"));
+const mpp_middleware_1 = require("./utils/mpp_middleware");
 // Helper to cast tool results to avoid strict TZ index signature issues with the MCP SDK.
 // The SDK expects a specific result structure that includes 'content'.
 const asToolResult = (p) => p;
@@ -72,5 +73,21 @@ function createMcpServer() {
     server.tool(tools.validationRequestToolName, tools.validationRequestToolDescription, tools.validationRequestParamScheme, async ({ jobId, validatorAddress, requestUri, requestHash, sender }) => asToolResult(tools.validationRequest(jobId, validatorAddress, requestUri, requestHash, sender)));
     server.tool(tools.validationResponseToolName, tools.validationResponseToolDescription, tools.validationResponseParamScheme, async ({ requestHash, response, responseUri, responseHash, tag, sender }) => asToolResult(tools.validationResponse(requestHash, response, responseUri, responseHash, tag, sender)));
     server.tool(tools.createPurchaseTransactionToolName, tools.createPurchaseTransactionToolDescription, tools.createPurchaseTransactionParamScheme, async ({ tokenIdentifier, nonce, quantity, receiver, price, sender }) => asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price, sender })));
+    // Wire the MPP Middleware to intercept premium endpoints
+    const underlyingServer = server.server;
+    const originalHandler = underlyingServer._requestHandlers.get("tools/call");
+    const PRICED_TOOLS = {
+        "sendEgld": { amount: "0.001", currency: "EGLD" }, // Default 0.001 EGLD fee for using this tool via agent
+        "sendTokens": { amount: "0.001", currency: "EGLD" }
+    };
+    const mpp = (0, mpp_middleware_1.createMppMiddleware)(underlyingServer, PRICED_TOOLS, {
+        networkProviderUrl: process.env.NETWORK_URL || "https://devnet-api.multiversx.com",
+        paymentReceiverAddress: process.env.FEE_RECEIVER_ADDRESS || "erd1qqqqqqqqqqqqqpgq...fee_address...qqqqqqqqqqqqq"
+    });
+    underlyingServer._requestHandlers.set("tools/call", async (request, extra) => {
+        return mpp(request, async (req) => {
+            return originalHandler(req, extra);
+        });
+    });
     return server;
 }

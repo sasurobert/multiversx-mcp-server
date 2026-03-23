@@ -19,12 +19,15 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@multiversx/sdk-core": "^15.3.2",
+    "@multiversx/sdk-network-providers": "^2.9.3",
     "@multiversx/sdk-wallet": "^4.6.0",
     "@types/node": "^25.0.7",
     "axios": "^1.13.2",
     "axon": "^2.0.3",
     "bignumber.js": "^9.3.1",
     "fastify": "^5.6.2",
+    "mppx": "file:../mppx",
+    "mppx-multiversx": "file:../mppx-multiversx",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "zod": "^4.3.6"
