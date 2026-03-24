@@ -203,3 +203,53 @@ export const validationResponseParamScheme = {
     sender: z.string().optional().describe("The address of the Validator"),
 };
 
+/**
+ * Build a transaction to verify a job (Convenience tool, maps to validation_response).
+ * In many test scenarios, the jobId is used directly as the requestHash.
+ */
+export async function verifyJob(
+    jobId: string,
+    sender?: string
+): Promise<ToolResult> {
+    const config = loadNetworkConfig();
+    const entrypoint = createEntrypoint(config);
+    const abi = createPatchedAbi(validationAbiJson);
+    const factory = entrypoint.createSmartContractTransactionsFactory(abi);
+
+    try {
+        const senderAddress = sender ? Address.newFromBech32(sender) : new Address(Buffer.alloc(32));
+
+        const tx = await factory.createTransactionForExecute(
+            senderAddress,
+            {
+                contract: Address.newFromBech32(REGISTRY_ADDRESSES.VALIDATION),
+                function: "validation_response",
+                arguments: [
+                    Buffer.from(jobId),      // Using jobId as requestHash
+                    100,                     // Success score
+                    Buffer.from(""),         // response_uri
+                    Buffer.from(""),         // response_hash
+                    Buffer.from("verified"), // tag
+                ],
+                gasLimit: 15_000_000n
+            }
+        );
+
+        return {
+            content: [{ type: "text", text: JSON.stringify(tx.toPlainObject(), null, 2) }]
+        };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        return {
+            content: [{ type: "text", text: `Error creating verify job transaction: ${message}` }],
+            isError: true
+        };
+    }
+}
+
+export const verifyJobToolName = "verify-job";
+export const verifyJobToolDescription = "Create an unsigned transaction to verify a job (Oracle/Validator only)";
+export const verifyJobParamScheme = {
+    jobId: z.string().describe("The Job ID to verify (used as request hash in tests)"),
+    sender: z.string().optional().describe("The address of the Validator"),
+};

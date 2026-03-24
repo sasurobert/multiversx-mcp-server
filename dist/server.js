@@ -72,7 +72,11 @@ function createMcpServer() {
     server.tool(tools.submitJobProofToolName, tools.submitJobProofToolDescription, tools.submitJobProofParamScheme, async ({ jobId, proofHash }) => asToolResult(tools.submitJobProof(jobId, proofHash)));
     server.tool(tools.validationRequestToolName, tools.validationRequestToolDescription, tools.validationRequestParamScheme, async ({ jobId, validatorAddress, requestUri, requestHash, sender }) => asToolResult(tools.validationRequest(jobId, validatorAddress, requestUri, requestHash, sender)));
     server.tool(tools.validationResponseToolName, tools.validationResponseToolDescription, tools.validationResponseParamScheme, async ({ requestHash, response, responseUri, responseHash, tag, sender }) => asToolResult(tools.validationResponse(requestHash, response, responseUri, responseHash, tag, sender)));
+    server.tool(tools.verifyJobToolName, tools.verifyJobToolDescription, tools.verifyJobParamScheme, async ({ jobId, sender }) => asToolResult(tools.verifyJob(jobId, sender)));
     server.tool(tools.createPurchaseTransactionToolName, tools.createPurchaseTransactionToolDescription, tools.createPurchaseTransactionParamScheme, async ({ tokenIdentifier, nonce, quantity, receiver, price, sender }) => asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price, sender })));
+    server.tool(tools.sessionOpenToolName, tools.sessionOpenToolDescription, tools.sessionOpenParamScheme, async ({ receiver, amount, tokenIdentifier, deadline }) => asToolResult(tools.sessionOpen(receiver, amount, tokenIdentifier, deadline)));
+    server.tool(tools.sessionPayToolName, tools.sessionPayToolDescription, tools.sessionPayParamScheme, async ({ channelId, amount, nonce, facilitatorUrl }) => asToolResult(tools.sessionPay(channelId, amount, nonce, facilitatorUrl)));
+    server.tool(tools.sessionSettleToolName, tools.sessionSettleToolDescription, tools.sessionSettleParamScheme, async ({ channelId, facilitatorUrl }) => asToolResult(tools.sessionSettle(channelId, facilitatorUrl)));
     // Wire the MPP Middleware to intercept premium endpoints
     const underlyingServer = server.server;
     const PRICED_TOOLS = {

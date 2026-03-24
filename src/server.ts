@@ -187,11 +187,39 @@ export function createMcpServer() {
     );
 
     server.tool(
+        tools.verifyJobToolName,
+        tools.verifyJobToolDescription,
+        tools.verifyJobParamScheme,
+        async ({ jobId, sender }) => asToolResult(tools.verifyJob(jobId, sender))
+    );
+
+    server.tool(
         tools.createPurchaseTransactionToolName,
         tools.createPurchaseTransactionToolDescription,
         tools.createPurchaseTransactionParamScheme,
         async ({ tokenIdentifier, nonce, quantity, receiver, price, sender }) =>
             asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price, sender }))
+    );
+
+    server.tool(
+        tools.sessionOpenToolName,
+        tools.sessionOpenToolDescription,
+        tools.sessionOpenParamScheme,
+        async ({ receiver, amount, tokenIdentifier, deadline }) => asToolResult(tools.sessionOpen(receiver, amount, tokenIdentifier, deadline))
+    );
+
+    server.tool(
+        tools.sessionPayToolName,
+        tools.sessionPayToolDescription,
+        tools.sessionPayParamScheme,
+        async ({ channelId, amount, nonce, facilitatorUrl }) => asToolResult(tools.sessionPay(channelId, amount, nonce, facilitatorUrl))
+    );
+
+    server.tool(
+        tools.sessionSettleToolName,
+        tools.sessionSettleToolDescription,
+        tools.sessionSettleParamScheme,
+        async ({ channelId, facilitatorUrl }) => asToolResult(tools.sessionSettle(channelId, facilitatorUrl))
     );
 
     // Wire the MPP Middleware to intercept premium endpoints

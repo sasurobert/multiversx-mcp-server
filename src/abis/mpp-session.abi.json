@@ -1,0 +1,266 @@
+{
+    "buildInfo": {
+        "rustc": {
+            "version": "1.91.1",
+            "commitHash": "ed61e7d7e242494fb7057f2657300d9e77bb4fcb",
+            "commitDate": "2025-11-07",
+            "channel": "Stable",
+            "short": "rustc 1.91.1 (ed61e7d7e 2025-11-07)"
+        },
+        "contractCrate": {
+            "name": "mpp-session-mvx",
+            "version": "0.1.1"
+        },
+        "framework": {
+            "name": "multiversx-sc",
+            "version": "0.55.0"
+        }
+    },
+    "name": "MppSessionContract",
+    "constructor": {
+        "inputs": [],
+        "outputs": []
+    },
+    "upgradeConstructor": {
+        "inputs": [],
+        "outputs": []
+    },
+    "endpoints": [
+        {
+            "docs": [
+                "Open a new payment session.",
+                "Locks the payment sent in the transaction."
+            ],
+            "name": "open",
+            "mutability": "mutable",
+            "payableInTokens": [
+                "*"
+            ],
+            "inputs": [
+                {
+                    "name": "receiver",
+                    "type": "Address"
+                },
+                {
+                    "name": "deadline",
+                    "type": "u64"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "docs": [
+                "Top up an existing session with more funds."
+            ],
+            "name": "top_up",
+            "mutability": "mutable",
+            "payableInTokens": [
+                "*"
+            ],
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "docs": [
+                "Settle a session incrementally using a signed voucher.",
+                "Can be called by the receiver to claim funds without closing."
+            ],
+            "name": "settle",
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes"
+                },
+                {
+                    "name": "amount",
+                    "type": "BigUint"
+                },
+                {
+                    "name": "nonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "signature",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "docs": [
+                "Close a session definitively and refund the remainder."
+            ],
+            "name": "close",
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes"
+                },
+                {
+                    "name": "amount",
+                    "type": "BigUint"
+                },
+                {
+                    "name": "nonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "signature",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "docs": [
+                "Allows employer to request closure if receiver is unresponsive.",
+                "Initiates a challenge period or closes if deadline passed."
+            ],
+            "name": "request_close",
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "name": "getSession",
+            "mutability": "readonly",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "SessionData"
+                }
+            ]
+        }
+    ],
+    "events": [
+        {
+            "identifier": "open_session",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes",
+                    "indexed": true
+                },
+                {
+                    "name": "employer",
+                    "type": "Address",
+                    "indexed": true
+                },
+                {
+                    "name": "receiver",
+                    "type": "Address",
+                    "indexed": true
+                },
+                {
+                    "name": "token_id",
+                    "type": "EgldOrEsdtTokenIdentifier",
+                    "indexed": true
+                },
+                {
+                    "name": "amount",
+                    "type": "BigUint"
+                }
+            ]
+        },
+        {
+            "identifier": "settle_session",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes",
+                    "indexed": true
+                },
+                {
+                    "name": "nonce",
+                    "type": "u64",
+                    "indexed": true
+                },
+                {
+                    "name": "amount",
+                    "type": "BigUint"
+                }
+            ]
+        },
+        {
+            "identifier": "close_session",
+            "inputs": [
+                {
+                    "name": "channel_id",
+                    "type": "bytes",
+                    "indexed": true
+                },
+                {
+                    "name": "amount",
+                    "type": "BigUint",
+                    "indexed": true
+                },
+                {
+                    "name": "refund_amount",
+                    "type": "BigUint"
+                }
+            ]
+        }
+    ],
+    "esdtAttributes": [],
+    "hasCallback": false,
+    "types": {
+        "SessionData": {
+            "type": "struct",
+            "fields": [
+                {
+                    "name": "employer",
+                    "type": "Address"
+                },
+                {
+                    "name": "receiver",
+                    "type": "Address"
+                },
+                {
+                    "name": "token_id",
+                    "type": "EgldOrEsdtTokenIdentifier"
+                },
+                {
+                    "name": "amount_locked",
+                    "type": "BigUint"
+                },
+                {
+                    "name": "amount_settled",
+                    "type": "BigUint"
+                },
+                {
+                    "name": "settlement_deadline",
+                    "type": "u64"
+                },
+                {
+                    "name": "last_voucher_nonce",
+                    "type": "u64"
+                },
+                {
+                    "name": "status",
+                    "type": "u8"
+                }
+            ]
+        }
+    }
+}
