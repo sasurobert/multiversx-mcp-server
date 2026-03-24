@@ -25,3 +25,4 @@ export * from "./registry/searchAgents";
 export * from "./registry/getTopRatedAgents";
 export * from "./commerce/createPurchaseTransaction";
 export * from "./session";
+export * from "./analytics";

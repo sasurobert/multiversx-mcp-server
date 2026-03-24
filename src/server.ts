@@ -222,6 +222,20 @@ export function createMcpServer() {
         async ({ channelId, facilitatorUrl }) => asToolResult(tools.sessionSettle(channelId, facilitatorUrl))
     );
 
+    server.tool(
+        tools.getRevenueToolName,
+        tools.getRevenueToolDescription,
+        tools.getRevenueParamScheme,
+        async ({ address, tokenIdentifier, days }) => asToolResult(tools.getRevenue(address, tokenIdentifier, days))
+    );
+
+    server.tool(
+        tools.getSpendToolName,
+        tools.getSpendToolDescription,
+        tools.getSpendParamScheme,
+        async ({ address, tokenIdentifier, days }) => asToolResult(tools.getSpend(address, tokenIdentifier, days))
+    );
+
     // Wire the MPP Middleware to intercept premium endpoints
     const underlyingServer = server.server;
 
