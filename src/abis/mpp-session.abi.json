@@ -1,19 +1,12 @@
 {
     "buildInfo": {
-        "rustc": {
-            "version": "1.91.1",
-            "commitHash": "ed61e7d7e242494fb7057f2657300d9e77bb4fcb",
-            "commitDate": "2025-11-07",
-            "channel": "Stable",
-            "short": "rustc 1.91.1 (ed61e7d7e 2025-11-07)"
-        },
         "contractCrate": {
             "name": "mpp-session-mvx",
             "version": "0.1.1"
         },
         "framework": {
             "name": "multiversx-sc",
-            "version": "0.55.0"
+            "version": "0.65.0"
         }
     },
     "name": "MppSessionContract",
@@ -53,9 +46,6 @@
             ]
         },
         {
-            "docs": [
-                "Top up an existing session with more funds."
-            ],
             "name": "top_up",
             "mutability": "mutable",
             "payableInTokens": [
@@ -70,10 +60,6 @@
             "outputs": []
         },
         {
-            "docs": [
-                "Settle a session incrementally using a signed voucher.",
-                "Can be called by the receiver to claim funds without closing."
-            ],
             "name": "settle",
             "mutability": "mutable",
             "inputs": [
@@ -97,9 +83,6 @@
             "outputs": []
         },
         {
-            "docs": [
-                "Close a session definitively and refund the remainder."
-            ],
             "name": "close",
             "mutability": "mutable",
             "inputs": [
@@ -123,10 +106,6 @@
             "outputs": []
         },
         {
-            "docs": [
-                "Allows employer to request closure if receiver is unresponsive.",
-                "Initiates a challenge period or closes if deadline passed."
-            ],
             "name": "request_close",
             "mutability": "mutable",
             "inputs": [
@@ -139,6 +118,7 @@
         },
         {
             "name": "getSession",
+            "rustMethodName": "sessions",
             "mutability": "readonly",
             "inputs": [
                 {
@@ -249,7 +229,7 @@
                     "type": "BigUint"
                 },
                 {
-                    "name": "settlement_deadline",
+                    "name": "deadline",
                     "type": "u64"
                 },
                 {
@@ -258,7 +238,24 @@
                 },
                 {
                     "name": "status",
-                    "type": "u8"
+                    "type": "SessionStatus"
+                }
+            ]
+        },
+        "SessionStatus": {
+            "type": "enum",
+            "variants": [
+                {
+                    "name": "None",
+                    "discriminant": 0
+                },
+                {
+                    "name": "Open",
+                    "discriminant": 1
+                },
+                {
+                    "name": "Closed",
+                    "discriminant": 2
                 }
             ]
         }
