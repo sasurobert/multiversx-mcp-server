@@ -75,19 +75,45 @@ function createMcpServer() {
     server.tool(tools.createPurchaseTransactionToolName, tools.createPurchaseTransactionToolDescription, tools.createPurchaseTransactionParamScheme, async ({ tokenIdentifier, nonce, quantity, receiver, price, sender }) => asToolResult(tools.createPurchaseTransaction({ tokenIdentifier, nonce, quantity, receiver, price, sender })));
     // Wire the MPP Middleware to intercept premium endpoints
     const underlyingServer = server.server;
-    const originalHandler = underlyingServer._requestHandlers.get("tools/call");
     const PRICED_TOOLS = {
-        "sendEgld": { amount: "0.001", currency: "EGLD" }, // Default 0.001 EGLD fee for using this tool via agent
-        "sendTokens": { amount: "0.001", currency: "EGLD" }
+        "sendEgld": { amount: "0.001", currency: "EGLD", intent: "charge" }, // Default 0.001 EGLD fee for using this tool via agent
+        "sendTokens": { amount: "0.001", currency: "EGLD", intent: "charge" },
+        "searchProducts": { amount: "0.01", currency: "EGLD", intent: "session", duration: "1h" },
+        "searchAgents": { amount: "0.01", currency: "EGLD", intent: "session", duration: "1h" }
     };
     const mpp = (0, mpp_middleware_1.createMppMiddleware)(underlyingServer, PRICED_TOOLS, {
         networkProviderUrl: process.env.NETWORK_URL || "https://devnet-api.multiversx.com",
         paymentReceiverAddress: process.env.FEE_RECEIVER_ADDRESS || "erd1qqqqqqqqqqqqqpgq...fee_address...qqqqqqqqqqqqq"
     });
+    // @ts-ignore - Patching internal MCP handler
+    const originalHandler = underlyingServer._requestHandlers.get("tools/call");
+    // @ts-ignore
     underlyingServer._requestHandlers.set("tools/call", async (request, extra) => {
         return mpp(request, async (req) => {
-            return originalHandler(req, extra);
+            return originalHandler ? originalHandler(req, extra) : null;
         });
+    });
+    // @ts-ignore - Patching internal MCP handler
+    const originalListHandler = underlyingServer._requestHandlers.get("tools/list");
+    // @ts-ignore
+    underlyingServer._requestHandlers.set("tools/list", async (request, extra) => {
+        const result = await (originalListHandler ? originalListHandler(request, extra) : { tools: [] });
+        if (result && Array.isArray(result.tools)) {
+            for (const tool of result.tools) {
+                const price = PRICED_TOOLS[tool.name];
+                if (price) {
+                    const paymentInfo = {
+                        intent: price.intent || "charge",
+                        method: "multiversx",
+                        amount: price.amount,
+                        currency: price.currency,
+                        description: `Price: ${price.amount} ${price.currency}`
+                    };
+                    tool.description = (tool.description || "") + `\n\nPayment Required:\n\`x-payment-info\`: ${JSON.stringify(paymentInfo)}`;
+                }
+            }
+        }
+        return result;
     });
     return server;
 }

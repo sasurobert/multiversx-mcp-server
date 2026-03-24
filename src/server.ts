@@ -198,8 +198,10 @@ export function createMcpServer() {
     const underlyingServer = server.server;
 
     const PRICED_TOOLS: Record<string, McpToolPrice> = {
-        "sendEgld": { amount: "0.001", currency: "EGLD" }, // Default 0.001 EGLD fee for using this tool via agent
-        "sendTokens": { amount: "0.001", currency: "EGLD" }
+        "sendEgld": { amount: "0.001", currency: "EGLD", intent: "charge" }, // Default 0.001 EGLD fee for using this tool via agent
+        "sendTokens": { amount: "0.001", currency: "EGLD", intent: "charge" },
+        "searchProducts": { amount: "0.01", currency: "EGLD", intent: "session", duration: "1h" },
+        "searchAgents": { amount: "0.01", currency: "EGLD", intent: "session", duration: "1h" }
     };
 
     const mpp = createMppMiddleware(underlyingServer, PRICED_TOOLS, {
@@ -214,6 +216,29 @@ export function createMcpServer() {
         return mpp(request, async (req) => {
             return originalHandler ? originalHandler(req, extra) : null;
         });
+    });
+
+    // @ts-ignore - Patching internal MCP handler
+    const originalListHandler = underlyingServer._requestHandlers.get("tools/list");
+    // @ts-ignore
+    underlyingServer._requestHandlers.set("tools/list", async (request: CallToolRequest, extra: unknown) => {
+        const result: any = await (originalListHandler ? originalListHandler(request, extra) : { tools: [] });
+        if (result && Array.isArray(result.tools)) {
+            for (const tool of result.tools) {
+                const price = PRICED_TOOLS[tool.name];
+                if (price) {
+                    const paymentInfo = {
+                        intent: price.intent || "charge",
+                        method: "multiversx",
+                        amount: price.amount,
+                        currency: price.currency,
+                        description: `Price: ${price.amount} ${price.currency}`
+                    };
+                    tool.description = (tool.description || "") + `\n\nPayment Required:\n\`x-payment-info\`: ${JSON.stringify(paymentInfo)}`;
+                }
+            }
+        }
+        return result;
     });
 
     return server;
