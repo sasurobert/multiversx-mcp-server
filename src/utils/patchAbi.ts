@@ -11,7 +11,8 @@ import { Abi } from "@multiversx/sdk-core";
 export function createPatchedAbi(abiJson: Record<string, unknown>): Abi {
     const raw = JSON.stringify(abiJson);
     const patched = raw
-        .replace(/"TokenId"/g, '"TokenIdentifier"')
-        .replace(/"NonZeroBigUint"/g, '"BigUint"');
+        .replace(/\bTokenId\b/g, 'TokenIdentifier')
+        .replace(/\bNonZeroBigUint\b/g, 'BigUint')
+        .replace(/\bPayment\b/g, 'EgldOrEsdtTokenPayment');
     return Abi.create(JSON.parse(patched));
 }
