@@ -27,11 +27,10 @@ export async function sessionPay(
         const scAddress = Address.newFromBech32(contractAddress);
         const channelIdBuffer = Buffer.from(channelId, "hex");
         
-        // amount (BigUint serialization: BE bytes)
-        const amountBI = BigInt(amount);
-        let amountHex = amountBI.toString(16);
-        if (amountHex.length % 2 !== 0) amountHex = "0" + amountHex;
-        const amountBytes = Buffer.from(amountHex, "hex");
+        // amount (Canonical 32-byte BE zero-padded buffer)
+        const amountBytes = Buffer.alloc(32);
+        const amountHex = BigInt(amount).toString(16).padStart(64, '0');
+        amountBytes.write(amountHex, 'hex');
         
         // nonce (u64, 8 bytes)
         const nonceBuffer = Buffer.alloc(8);

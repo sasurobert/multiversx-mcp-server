@@ -223,6 +223,27 @@ export function createMcpServer() {
     );
 
     server.tool(
+        tools.sessionCloseToolName,
+        tools.sessionCloseToolDescription,
+        tools.sessionCloseParamScheme,
+        async ({ channelId, facilitatorUrl }) => asToolResult(tools.sessionClose(channelId, facilitatorUrl))
+    );
+
+    server.tool(
+        tools.sessionRequestCloseToolName,
+        tools.sessionRequestCloseToolDescription,
+        tools.sessionRequestCloseParamScheme,
+        async ({ channelId }) => asToolResult(tools.sessionRequestClose(channelId))
+    );
+
+    server.tool(
+        tools.sessionFinalizeCloseToolName,
+        tools.sessionFinalizeCloseToolDescription,
+        tools.sessionFinalizeCloseParamScheme,
+        async ({ channelId }) => asToolResult(tools.sessionFinalizeClose(channelId))
+    );
+
+    server.tool(
         tools.getRevenueToolName,
         tools.getRevenueToolDescription,
         tools.getRevenueParamScheme,

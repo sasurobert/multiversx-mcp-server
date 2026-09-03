@@ -10,17 +10,32 @@
             "llvmVersion": "21.1"
         },
         "contractCrate": {
-            "name": "mpp-session-mvx",
-            "version": "0.1.1"
+            "name": "escrow",
+            "version": "0.1.0"
         },
         "framework": {
             "name": "multiversx-sc",
-            "version": "0.64.2"
+            "version": "0.64.1"
         }
     },
-    "name": "MppSessionContract",
+    "docs": [
+        "ACP Escrow Contract — locks funds for agent jobs, releases on proof verification,",
+        "refunds if deadline passes without verified proof.",
+        "",
+        "Follows Checks-Effects-Interactions pattern throughout."
+    ],
+    "name": "EscrowContract",
     "constructor": {
-        "inputs": [],
+        "inputs": [
+            {
+                "name": "validation_contract_address",
+                "type": "Address"
+            },
+            {
+                "name": "identity_contract_address",
+                "type": "Address"
+            }
+        ],
         "outputs": []
     },
     "upgradeConstructor": {
@@ -30,140 +45,108 @@
     "endpoints": [
         {
             "docs": [
-                "Open a new payment session.",
-                "Locks the payment sent in the transaction."
+                "Deposit funds into escrow for a specific job.",
+                "Accepts EGLD or any ESDT token.",
+                "`deadline` is a Unix timestamp (seconds) after which a refund is allowed."
             ],
-            "name": "open",
+            "name": "deposit",
             "mutability": "mutable",
             "payableInTokens": [
                 "*"
             ],
             "inputs": [
                 {
+                    "name": "job_id",
+                    "type": "bytes"
+                },
+                {
                     "name": "receiver",
                     "type": "Address"
+                },
+                {
+                    "name": "poa_hash",
+                    "type": "bytes"
                 },
                 {
                     "name": "deadline",
                     "type": "u64"
                 }
             ],
+            "outputs": []
+        },
+        {
+            "docs": [
+                "Release escrowed funds to the receiver.",
+                "Only callable by the employer. Job must be verified in the ValidationRegistry."
+            ],
+            "name": "release",
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "job_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "docs": [
+                "Refund escrowed funds to the employer if the deadline has passed.",
+                "Cannot refund if the job has been verified.",
+                "Anyone can call this (allows automated cleanup)."
+            ],
+            "name": "refund",
+            "mutability": "mutable",
+            "inputs": [
+                {
+                    "name": "job_id",
+                    "type": "bytes"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "name": "get_escrow",
+            "mutability": "readonly",
+            "inputs": [
+                {
+                    "name": "job_id",
+                    "type": "bytes"
+                }
+            ],
             "outputs": [
                 {
-                    "type": "bytes"
+                    "type": "EscrowData"
                 }
             ]
         },
         {
-            "name": "top_up",
-            "mutability": "mutable",
-            "payableInTokens": [
-                "*"
-            ],
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes"
-                }
-            ],
-            "outputs": []
-        },
-        {
-            "name": "settle",
-            "mutability": "mutable",
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes"
-                },
-                {
-                    "name": "amount",
-                    "type": "BigUint"
-                },
-                {
-                    "name": "nonce",
-                    "type": "u64"
-                },
-                {
-                    "name": "signature",
-                    "type": "bytes"
-                }
-            ],
-            "outputs": []
-        },
-        {
-            "name": "close",
-            "mutability": "mutable",
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes"
-                },
-                {
-                    "name": "amount",
-                    "type": "BigUint"
-                },
-                {
-                    "name": "nonce",
-                    "type": "u64"
-                },
-                {
-                    "name": "signature",
-                    "type": "bytes"
-                }
-            ],
-            "outputs": []
-        },
-        {
-            "docs": [
-                "Request close initiates the closing state or finalizes if deadline has passed."
-            ],
-            "name": "request_close",
-            "mutability": "mutable",
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes"
-                }
-            ],
-            "outputs": []
-        },
-        {
-            "docs": [
-                "Explicitly finalize closure once challenge period is complete"
-            ],
-            "name": "finalize_close",
-            "mutability": "mutable",
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes"
-                }
-            ],
-            "outputs": []
-        },
-        {
-            "name": "getSession",
+            "name": "get_validation_contract_address",
             "mutability": "readonly",
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes"
-                }
-            ],
+            "inputs": [],
             "outputs": [
                 {
-                    "type": "SessionData"
+                    "type": "Address"
+                }
+            ]
+        },
+        {
+            "name": "get_identity_contract_address",
+            "mutability": "readonly",
+            "inputs": [],
+            "outputs": [
+                {
+                    "type": "Address"
                 }
             ]
         }
     ],
     "events": [
         {
-            "identifier": "open_session",
+            "identifier": "escrow_deposited",
             "inputs": [
                 {
-                    "name": "channel_id",
+                    "name": "job_id",
                     "type": "bytes",
                     "indexed": true
                 },
@@ -173,55 +156,45 @@
                     "indexed": true
                 },
                 {
+                    "name": "amount",
+                    "type": "BigUint"
+                }
+            ]
+        },
+        {
+            "identifier": "escrow_released",
+            "inputs": [
+                {
+                    "name": "job_id",
+                    "type": "bytes",
+                    "indexed": true
+                },
+                {
                     "name": "receiver",
                     "type": "Address",
                     "indexed": true
                 },
                 {
-                    "name": "token_id",
-                    "type": "EgldOrEsdtTokenIdentifier",
-                    "indexed": true
-                },
-                {
                     "name": "amount",
                     "type": "BigUint"
                 }
             ]
         },
         {
-            "identifier": "settle_session",
+            "identifier": "escrow_refunded",
             "inputs": [
                 {
-                    "name": "channel_id",
+                    "name": "job_id",
                     "type": "bytes",
                     "indexed": true
                 },
                 {
-                    "name": "nonce",
-                    "type": "u64",
+                    "name": "employer",
+                    "type": "Address",
                     "indexed": true
                 },
                 {
                     "name": "amount",
-                    "type": "BigUint"
-                }
-            ]
-        },
-        {
-            "identifier": "close_session",
-            "inputs": [
-                {
-                    "name": "channel_id",
-                    "type": "bytes",
-                    "indexed": true
-                },
-                {
-                    "name": "amount",
-                    "type": "BigUint",
-                    "indexed": true
-                },
-                {
-                    "name": "refund_amount",
                     "type": "BigUint"
                 }
             ]
@@ -230,8 +203,11 @@
     "esdtAttributes": [],
     "hasCallback": false,
     "types": {
-        "SessionData": {
+        "EscrowData": {
             "type": "struct",
+            "docs": [
+                "On-chain escrow record."
+            ],
             "fields": [
                 {
                     "name": "employer",
@@ -242,20 +218,20 @@
                     "type": "Address"
                 },
                 {
-                    "name": "token_identifier",
+                    "name": "token_id",
                     "type": "EgldOrEsdtTokenIdentifier"
                 },
                 {
-                    "name": "amount_locked",
-                    "type": "BigUint"
-                },
-                {
-                    "name": "amount_settled",
-                    "type": "BigUint"
-                },
-                {
-                    "name": "nonce",
+                    "name": "token_nonce",
                     "type": "u64"
+                },
+                {
+                    "name": "amount",
+                    "type": "BigUint"
+                },
+                {
+                    "name": "poa_hash",
+                    "type": "bytes"
                 },
                 {
                     "name": "deadline",
@@ -263,7 +239,27 @@
                 },
                 {
                     "name": "status",
-                    "type": "u8"
+                    "type": "EscrowStatus"
+                }
+            ]
+        },
+        "EscrowStatus": {
+            "type": "enum",
+            "docs": [
+                "Escrow settlement status."
+            ],
+            "variants": [
+                {
+                    "name": "Active",
+                    "discriminant": 0
+                },
+                {
+                    "name": "Released",
+                    "discriminant": 1
+                },
+                {
+                    "name": "Refunded",
+                    "discriminant": 2
                 }
             ]
         }

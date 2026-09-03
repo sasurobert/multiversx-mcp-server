@@ -77,6 +77,11 @@ function createMcpServer() {
     server.tool(tools.sessionOpenToolName, tools.sessionOpenToolDescription, tools.sessionOpenParamScheme, async ({ receiver, amount, tokenIdentifier, deadline }) => asToolResult(tools.sessionOpen(receiver, amount, tokenIdentifier, deadline)));
     server.tool(tools.sessionPayToolName, tools.sessionPayToolDescription, tools.sessionPayParamScheme, async ({ channelId, amount, nonce, facilitatorUrl }) => asToolResult(tools.sessionPay(channelId, amount, nonce, facilitatorUrl)));
     server.tool(tools.sessionSettleToolName, tools.sessionSettleToolDescription, tools.sessionSettleParamScheme, async ({ channelId, facilitatorUrl }) => asToolResult(tools.sessionSettle(channelId, facilitatorUrl)));
+    server.tool(tools.sessionCloseToolName, tools.sessionCloseToolDescription, tools.sessionCloseParamScheme, async ({ channelId, facilitatorUrl }) => asToolResult(tools.sessionClose(channelId, facilitatorUrl)));
+    server.tool(tools.sessionRequestCloseToolName, tools.sessionRequestCloseToolDescription, tools.sessionRequestCloseParamScheme, async ({ channelId }) => asToolResult(tools.sessionRequestClose(channelId)));
+    server.tool(tools.sessionFinalizeCloseToolName, tools.sessionFinalizeCloseToolDescription, tools.sessionFinalizeCloseParamScheme, async ({ channelId }) => asToolResult(tools.sessionFinalizeClose(channelId)));
+    server.tool(tools.getRevenueToolName, tools.getRevenueToolDescription, tools.getRevenueParamScheme, async ({ address, tokenIdentifier, days }) => asToolResult(tools.getRevenue(address, tokenIdentifier, days)));
+    server.tool(tools.getSpendToolName, tools.getSpendToolDescription, tools.getSpendParamScheme, async ({ address, tokenIdentifier, days }) => asToolResult(tools.getSpend(address, tokenIdentifier, days)));
     // Wire the MPP Middleware to intercept premium endpoints
     const underlyingServer = server.server;
     const PRICED_TOOLS = {

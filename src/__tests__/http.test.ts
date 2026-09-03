@@ -43,7 +43,7 @@ describe("HTTP Server", () => {
     });
 
     it("should return product feed", async () => {
-        (searchProducts as jest.Mock).mockResolvedValue({
+        (searchProducts as any).mockResolvedValue({
             content: [{
                 type: "text",
                 text: JSON.stringify([{
